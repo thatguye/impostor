@@ -8,6 +8,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: ChangelogEntry[] = [
   {
+    version: 'v1.7',
+    date: 'Nov 22, 2026',
+    time: '10:38 PM',
+    title: 'Card Controls',
+    items: [
+      'Locked scrolling while viewing cards.',
+    ],
+  },
+  {
     version: 'v1.6',
     date: 'Nov 22, 2026',
     time: '8:47 PM',

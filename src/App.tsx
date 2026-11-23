@@ -104,6 +104,25 @@ export default function App() {
   useEffect(() => saveUsedHistory(usedHistory), [usedHistory]);
   useEffect(() => saveScores(scores), [scores]);
 
+  // Lock page scrolling during Word/Question pass-and-reveal screens so touch drags never scroll
+  const isPassLocked = phase === 'privacy_pass';
+  useEffect(() => {
+    const html = document.documentElement;
+    const body = document.body;
+    if (isPassLocked) {
+      window.scrollTo(0, 0);
+      html.classList.add('scroll-locked');
+      body.classList.add('scroll-locked');
+    } else {
+      html.classList.remove('scroll-locked');
+      body.classList.remove('scroll-locked');
+    }
+    return () => {
+      html.classList.remove('scroll-locked');
+      body.classList.remove('scroll-locked');
+    };
+  }, [isPassLocked]);
+
   const allDecks = useMemo(
     () => [...customDecks, ...BUILT_IN_CATEGORIES],
     [customDecks]
@@ -318,7 +337,9 @@ export default function App() {
 
   return (
     <div
-      className="min-h-[100dvh] bg-[#09090E] text-[#F4F4F8] flex flex-col"
+      className={`${
+        isPassLocked ? 'h-[100dvh] overflow-hidden overscroll-none' : 'min-h-[100dvh]'
+      } bg-[#09090E] text-[#F4F4F8] flex flex-col`}
       data-game-phase={phase}
     >
       <HeaderBar

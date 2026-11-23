@@ -33,6 +33,8 @@ export const PrivacyPassScreen: React.FC<PrivacyPassScreenProps> = ({
   const [isHolding, setIsHolding] = useState(false);
   const [hasPeeked, setHasPeeked] = useState(false);
   const holdingRef = useRef(false);
+  const activePointerIdRef = useRef<number | null>(null);
+  const holdButtonRef = useRef<HTMLButtonElement | null>(null);
 
   // Question Mode state (tap-to-reveal + typed private answer)
   const [isQuestionOpen, setIsQuestionOpen] = useState(false);
@@ -60,6 +62,7 @@ export const PrivacyPassScreen: React.FC<PrivacyPassScreenProps> = ({
     setSelectedPlayerId(null);
     setCompletedIds([]);
     holdingRef.current = false;
+    activePointerIdRef.current = null;
     setIsHolding(false);
     setHasPeeked(false);
     setIsQuestionOpen(false);
@@ -70,6 +73,7 @@ export const PrivacyPassScreen: React.FC<PrivacyPassScreenProps> = ({
   // Reset per-player card state whenever switching selected player
   useEffect(() => {
     holdingRef.current = false;
+    activePointerIdRef.current = null;
     setIsHolding(false);
     setHasPeeked(false);
     setIsQuestionOpen(false);
@@ -86,23 +90,48 @@ export const PrivacyPassScreen: React.FC<PrivacyPassScreenProps> = ({
     return () => window.clearTimeout(timer);
   }, [isQuestionMode, isQuestionOpen]);
 
+  // Prevent iOS Safari rubber-band touch scrolling while viewing a player's card
+  useEffect(() => {
+    if (!selectedPlayerId) return;
+    const preventTouchScroll = (e: TouchEvent) => {
+      // Allow typing/selecting inside the Question Mode text input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+      e.preventDefault();
+    };
+    document.addEventListener('touchmove', preventTouchScroll, { passive: false });
+    return () => {
+      document.removeEventListener('touchmove', preventTouchScroll);
+    };
+  }, [selectedPlayerId]);
+
   // Safety release for Word Mode hold if pointer goes up anywhere on window
   useEffect(() => {
     if (isQuestionMode) return;
-    const handleGlobalRelease = () => {
+    const handleGlobalRelease = (e?: PointerEvent) => {
+      if (
+        e &&
+        activePointerIdRef.current !== null &&
+        e.pointerId !== activePointerIdRef.current
+      ) {
+        return;
+      }
       if (holdingRef.current) {
         holdingRef.current = false;
+        activePointerIdRef.current = null;
         setIsHolding(false);
         playCardFlipSound(false);
       }
     };
+    const handleBlur = () => handleGlobalRelease();
     window.addEventListener('pointerup', handleGlobalRelease);
     window.addEventListener('pointercancel', handleGlobalRelease);
-    window.addEventListener('blur', handleGlobalRelease);
+    window.addEventListener('blur', handleBlur);
     return () => {
       window.removeEventListener('pointerup', handleGlobalRelease);
       window.removeEventListener('pointercancel', handleGlobalRelease);
-      window.removeEventListener('blur', handleGlobalRelease);
+      window.removeEventListener('blur', handleBlur);
     };
   }, [isQuestionMode]);
 
@@ -117,6 +146,7 @@ export const PrivacyPassScreen: React.FC<PrivacyPassScreenProps> = ({
   const endHold = () => {
     if (!holdingRef.current) return;
     holdingRef.current = false;
+    activePointerIdRef.current = null;
     setIsHolding(false);
     playCardFlipSound(false);
   };
@@ -167,9 +197,13 @@ export const PrivacyPassScreen: React.FC<PrivacyPassScreenProps> = ({
   const canBackOutSafely = isQuestionMode ? !hasOpenedQuestion : !hasPeeked;
 
   return (
-    <main className="mx-auto flex min-h-[calc(100dvh-56px)] w-full max-w-lg flex-col items-center justify-between px-5 py-6 pb-safe">
+    <main
+      className={`mx-auto flex flex-1 min-h-0 w-full max-w-lg flex-col items-center justify-between overflow-hidden overscroll-none px-5 py-4 pb-safe ${
+        selectedPlayerId ? 'touch-none' : ''
+      }`}
+    >
       {/* Top Progress */}
-      <div className="w-full space-y-2.5 text-center">
+      <div className="w-full shrink-0 space-y-2 text-center">
         <div className="flex items-center justify-center gap-2 text-xs font-medium text-[#9898B0]">
           <span>
             {round.categoryEmoji} {round.categoryName}
@@ -198,15 +232,15 @@ export const PrivacyPassScreen: React.FC<PrivacyPassScreenProps> = ({
       </div>
 
       {/* Center Stage */}
-      <div className="my-6 flex w-full flex-1 flex-col items-center justify-center">
+      <div className="my-3 flex w-full flex-1 min-h-0 flex-col items-center justify-center overflow-hidden">
         {!selectedPlayerId || !currentPlayer || !assignment ? (
           /* PLAYER PICKER GRID: Tap Whoever You Are */
           <section
             aria-label="Select Your Name"
-            className="w-full space-y-5"
+            className="flex w-full max-h-full flex-col space-y-4 overflow-hidden"
           >
-            <div className="text-center space-y-1.5">
-              <h1 className="font-display text-3xl font-extrabold text-[#F4F4F8] tracking-tight">
+            <div className="shrink-0 text-center space-y-1">
+              <h1 className="font-display text-2xl sm:text-3xl font-extrabold text-[#F4F4F8] tracking-tight">
                 Tap Your Name
               </h1>
               <p className="text-sm text-[#9898B0]">
@@ -218,7 +252,7 @@ export const PrivacyPassScreen: React.FC<PrivacyPassScreenProps> = ({
 
             <div
               data-testid="player-picker-grid"
-              className={`grid gap-3 ${
+              className={`grid gap-2.5 overflow-y-auto overscroll-contain pr-0.5 ${
                 roundPlayers.length >= 7 ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-2'
               }`}
             >
@@ -235,7 +269,7 @@ export const PrivacyPassScreen: React.FC<PrivacyPassScreenProps> = ({
                       playTapSound();
                       setSelectedPlayerId(player.id);
                     }}
-                    className={`relative flex flex-col items-center justify-center gap-2.5 rounded-3xl border p-5 text-center transition-all min-h-[124px] ${
+                    className={`relative flex flex-col items-center justify-center gap-2 rounded-3xl border p-4 text-center transition-all min-h-[110px] ${
                       isDone
                         ? 'bg-[#10161D] border-emerald-400/25 opacity-60 cursor-default'
                         : 'bg-[#14141F] border-white/[0.1] hover:border-cyan-400/50 hover:bg-[#1A1A29] active:scale-[0.97] shadow-lg cursor-pointer'
@@ -298,7 +332,7 @@ export const PrivacyPassScreen: React.FC<PrivacyPassScreenProps> = ({
 
             <div className="perspective-1200 w-full">
               <div
-                className={`card-flip-inner preserve-3d relative w-full h-[400px] sm:h-[420px] ${
+                className={`card-flip-inner preserve-3d relative w-full h-[min(390px,56dvh)] sm:h-[min(420px,58dvh)] ${
                   isQuestionOpen ? 'rotate-y-180' : ''
                 }`}
               >
@@ -418,7 +452,7 @@ export const PrivacyPassScreen: React.FC<PrivacyPassScreenProps> = ({
           </div>
         ) : (
           /* WORD MODE: 3D Press-and-Hold Secret Card */
-          <div className="w-full space-y-5">
+          <div className="w-full space-y-4 touch-none">
             <div className="text-center space-y-1">
               <p className="text-sm font-semibold text-[#F4F4F8]">
                 {currentPlayer.emoji} {currentPlayer.name}’s Secret Card
@@ -430,22 +464,49 @@ export const PrivacyPassScreen: React.FC<PrivacyPassScreenProps> = ({
               </p>
             </div>
 
-            <div className="perspective-1200 w-full">
+            <div className="perspective-1200 w-full touch-none">
               <button
+                ref={holdButtonRef}
                 type="button"
                 data-testid="hold-reveal-card"
                 aria-label="Press and Hold to Reveal Role"
                 aria-pressed={isHolding}
                 onPointerDown={(e) => {
                   e.preventDefault();
+                  activePointerIdRef.current = e.pointerId;
+                  try {
+                    e.currentTarget.setPointerCapture(e.pointerId);
+                  } catch {
+                    // Ignore capture errors on synthetic events
+                  }
                   startHold();
                 }}
                 onPointerUp={(e) => {
                   e.preventDefault();
+                  if (
+                    activePointerIdRef.current !== null &&
+                    e.pointerId !== activePointerIdRef.current
+                  ) {
+                    return;
+                  }
+                  try {
+                    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+                      e.currentTarget.releasePointerCapture(e.pointerId);
+                    }
+                  } catch {
+                    // Ignore release errors on synthetic events
+                  }
                   endHold();
                 }}
-                onPointerLeave={endHold}
-                onPointerCancel={endHold}
+                onPointerCancel={(e) => {
+                  if (
+                    activePointerIdRef.current !== null &&
+                    e.pointerId !== activePointerIdRef.current
+                  ) {
+                    return;
+                  }
+                  endHold();
+                }}
                 onKeyDown={(e) => {
                   if (e.key === ' ' || e.key === 'Enter') {
                     e.preventDefault();
@@ -459,7 +520,7 @@ export const PrivacyPassScreen: React.FC<PrivacyPassScreenProps> = ({
                   }
                 }}
                 onContextMenu={(e) => e.preventDefault()}
-                className="no-select-touch relative block w-full h-[360px] sm:h-[380px] text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 rounded-3xl cursor-pointer"
+                className="no-select-touch touch-none relative block w-full h-[min(360px,52dvh)] sm:h-[min(380px,54dvh)] text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 rounded-3xl cursor-pointer"
               >
                 <div
                   className={`card-flip-inner preserve-3d relative h-full w-full ${
@@ -568,7 +629,7 @@ export const PrivacyPassScreen: React.FC<PrivacyPassScreenProps> = ({
       </div>
 
       {/* Bottom Action */}
-      <div className="w-full space-y-2.5 pt-2">
+      <div className="w-full shrink-0 space-y-2 pt-1">
         {!selectedPlayerId ? (
           <p className="text-center text-xs text-[#666680]">
             Tap your own name when it’s your turn
