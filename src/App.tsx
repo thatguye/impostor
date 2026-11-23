@@ -1,8 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CategoryDeck,
   GamePhase,
   GameSettings,
+  OnlineProfile,
+  OnlineRoomState,
+  OnlineSessionIdentity,
   Player,
   PlayerGroup,
   RoundState,
@@ -17,8 +20,31 @@ import {
   submitPlayerAnswer,
 } from './game/engine';
 import {
+  addOrRejoinRoomPlayer,
+  advanceAfterVoteResults,
+  backToOnlineDiscussion,
+  castOnlineVote,
+  createInitialRoomState,
+  forceStartOnlineDiscussion,
+  generateRoomCode,
+  markPlayerReadyWordMode,
+  normalizeRoomCode,
+  removeRoomPlayer,
+  resetOnlineScores,
+  resolveOnlineVotes,
+  returnRoomToLobby,
+  revealAllRolesOnline,
+  startOnlineRound,
+  startOnlineVoting,
+  submitOnlineQuestionAnswer,
+  updateOnlineTimer,
+  updateRoomLobbyConfig,
+} from './game/online';
+import {
   loadCustomDecks,
   loadMuted,
+  loadOnlineProfile,
+  loadOnlineSession,
   loadPlayerGroups,
   loadPlayers,
   loadScores,
@@ -27,6 +53,8 @@ import {
   loadUsedHistory,
   saveCustomDecks,
   saveMuted,
+  saveOnlineProfile,
+  saveOnlineSession,
   savePlayerGroups,
   savePlayers,
   saveScores,
@@ -34,6 +62,13 @@ import {
   saveSettings,
   saveUsedHistory,
 } from './utils/storage';
+import {
+  createRoomRow,
+  fetchRoomRow,
+  mutateRoomRow,
+  resolveSupabaseCredentials,
+  subscribeToRoomRow,
+} from './utils/supabaseClient';
 import {
   playDramaticRevealSound,
   playTapSound,
@@ -47,10 +82,19 @@ import { HowToPlayModal } from './components/HowToPlayModal';
 import { ScoreboardModal } from './components/ScoreboardModal';
 import { ChangelogModal } from './components/ChangelogModal';
 import { CustomDeckModal } from './components/CustomDeckModal';
+import { SupabaseConfigModal } from './components/SupabaseConfigModal';
 import { PrivacyPassScreen } from './components/PrivacyPassScreen';
 import { DiscussionScreen } from './components/DiscussionScreen';
 import { VotingScreen } from './components/VotingScreen';
 import { RoundSummaryScreen } from './components/RoundSummaryScreen';
+import { OnlineRoomView } from './components/OnlineRoomView';
+
+function createClientPlayerId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return `op-${crypto.randomUUID().slice(0, 10)}`;
+  }
+  return `op-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+}
 
 export default function App() {
   const [players, setPlayers] = useState<Player[]>(() => loadPlayers());
@@ -68,12 +112,29 @@ export default function App() {
     return m;
   });
 
-  // Active Game State
+  // Pass & Play Active Game State
   const [phase, setPhase] = useState<GamePhase>('lobby');
   const [round, setRound] = useState<RoundState | null>(null);
   const [roundCount, setRoundCount] = useState<number>(0);
   const [roundScoreDeltas, setRoundScoreDeltas] = useState<Record<string, number>>({});
   const [noticeBanner, setNoticeBanner] = useState<string | null>(null);
+
+  // Online Multiplayer State
+  const [playStyle, setPlayStyle] = useState<'pass_and_play' | 'online'>('pass_and_play');
+  const [onlineActionTab, setOnlineActionTab] = useState<'host' | 'join'>('host');
+  const [onlineProfile, setOnlineProfile] = useState<OnlineProfile>(() => loadOnlineProfile());
+  const [joinCodeDraft, setJoinCodeDraft] = useState('');
+  const [onlineError, setOnlineError] = useState<string | null>(null);
+  const [onlineLoading, setOnlineLoading] = useState(false);
+  const [isSyncingOnline, setIsSyncingOnline] = useState(false);
+  const [realtimeStatus, setRealtimeStatus] = useState<string>('CLOSED');
+  const [onlineSession, setOnlineSession] = useState<OnlineSessionIdentity | null>(() =>
+    loadOnlineSession()
+  );
+  const [onlineRoom, setOnlineRoom] = useState<OnlineRoomState | null>(null);
+  const [showSupabaseConfig, setShowSupabaseConfig] = useState(false);
+  const [supabaseConfigTick, setSupabaseConfigTick] = useState(0);
+  const [reconnectTick, setReconnectTick] = useState(0);
 
   // Modals
   const [showHowToPlay, setShowHowToPlay] = useState(false);
@@ -81,6 +142,17 @@ export default function App() {
   const [showChangelog, setShowChangelog] = useState(false);
   const [showCustomDeckModal, setShowCustomDeckModal] = useState(false);
   const [editingDeck, setEditingDeck] = useState<CategoryDeck | null>(null);
+
+  const onlineSessionRef = useRef(onlineSession);
+  onlineSessionRef.current = onlineSession;
+  const realtimeStatusRef = useRef(realtimeStatus);
+  realtimeStatusRef.current = realtimeStatus;
+  const prevOnlinePhaseRef = useRef<string | null>(null);
+
+  const supabaseInfo = useMemo(() => {
+    void supabaseConfigTick;
+    return resolveSupabaseCredentials();
+  }, [supabaseConfigTick]);
 
   // Unlock iOS silent-switch audio on first user interaction
   useEffect(() => {
@@ -95,7 +167,7 @@ export default function App() {
     };
   }, []);
 
-  // Persist to localStorage
+  // Persist local preferences
   useEffect(() => savePlayers(players), [players]);
   useEffect(() => savePlayerGroups(groups), [groups]);
   useEffect(() => saveSettings(settings), [settings]);
@@ -103,9 +175,10 @@ export default function App() {
   useEffect(() => saveSelectedDeckIds(selectedDeckIds), [selectedDeckIds]);
   useEffect(() => saveUsedHistory(usedHistory), [usedHistory]);
   useEffect(() => saveScores(scores), [scores]);
+  useEffect(() => saveOnlineProfile(onlineProfile), [onlineProfile]);
 
-  // Lock page scrolling during Word/Question pass-and-reveal screens so touch drags never scroll
-  const isPassLocked = phase === 'privacy_pass';
+  // Lock page scrolling during Word/Question card reveals (offline & online)
+  const isPassLocked = phase === 'privacy_pass' || onlineRoom?.phase === 'role_reveal';
   useEffect(() => {
     const html = document.documentElement;
     const body = document.body;
@@ -152,6 +225,196 @@ export default function App() {
       setNoticeBanner((curr) => (curr === msg ? null : curr));
     }, 3200);
   }, []);
+
+  // Auto-rejoin saved online session OR prefill ?room=XXXX invite link
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const roomParam = normalizeRoomCode(params.get('room') ?? '');
+    const saved = loadOnlineSession();
+
+    if (roomParam.length === 4 && (!saved || saved.roomCode !== roomParam)) {
+      setPlayStyle('online');
+      setOnlineActionTab('join');
+      setJoinCodeDraft(roomParam);
+      if (saved) {
+        saveOnlineSession(null);
+        setOnlineSession(null);
+      }
+      return;
+    }
+
+    if (!saved) return;
+    const { creds } = resolveSupabaseCredentials();
+    if (!creds) {
+      setPlayStyle('online');
+      return;
+    }
+
+    let cancelled = false;
+    setPlayStyle('online');
+    setOnlineLoading(true);
+
+    fetchRoomRow(saved.roomCode)
+      .then((fetched) => {
+        if (cancelled) return;
+        if (!fetched || !fetched.players.some((p) => p.id === saved.playerId)) {
+          saveOnlineSession(null);
+          setOnlineSession(null);
+          setOnlineRoom(null);
+          return;
+        }
+        setOnlineRoom(fetched);
+        const me = fetched.players.find((p) => p.id === saved.playerId);
+        if (me) {
+          void mutateRoomRow(saved.roomCode, (curr) =>
+            addOrRejoinRoomPlayer(curr, {
+              id: me.id,
+              name: me.name,
+              emoji: me.emoji,
+              color: me.color,
+            })
+          )
+            .then((refreshed) => {
+              if (!cancelled && refreshed) setOnlineRoom(refreshed);
+            })
+            .catch(() => {
+              // Ignore background heartbeat failure
+            });
+        }
+      })
+      .catch(() => {
+        // Keep session saved so user can retry sync
+      })
+      .finally(() => {
+        if (!cancelled) setOnlineLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [supabaseConfigTick]);
+
+  // Force state sync whenever returning from Discord/FaceTime, unlocking phone, or regaining network
+  const forceSyncOnlineRoom = useCallback(async () => {
+    const session = onlineSessionRef.current;
+    if (!session) return;
+    const { creds } = resolveSupabaseCredentials();
+    if (!creds) return;
+
+    setIsSyncingOnline(true);
+    try {
+      const latest = await fetchRoomRow(session.roomCode);
+      if (!latest || !latest.players.some((p) => p.id === session.playerId)) {
+        saveOnlineSession(null);
+        setOnlineSession(null);
+        setOnlineRoom(null);
+        showNotice('You left or the online room closed.');
+        return;
+      }
+      setOnlineRoom(latest);
+      if (realtimeStatusRef.current !== 'SUBSCRIBED') {
+        setReconnectTick((t) => t + 1);
+      }
+    } catch {
+      // Ignore transient offline sync error; next visibilitychange/sync will recover
+    } finally {
+      setIsSyncingOnline(false);
+    }
+  }, [showNotice]);
+
+  // Subscribe to Supabase Realtime for active room
+  useEffect(() => {
+    if (!onlineSession || !onlineRoom) {
+      setRealtimeStatus('CLOSED');
+      return;
+    }
+    const { creds } = resolveSupabaseCredentials();
+    if (!creds) return;
+
+    const unsubscribe = subscribeToRoomRow(
+      onlineSession.roomCode,
+      (updatedRoom) => {
+        setOnlineRoom((prev) => {
+          if (prev && updatedRoom.version < prev.version) return prev;
+          return updatedRoom;
+        });
+      },
+      (status) => {
+        setRealtimeStatus(status);
+      }
+    );
+
+    return () => {
+      unsubscribe();
+    };
+  }, [onlineSession?.roomCode, !!onlineRoom, supabaseConfigTick, reconnectTick]);
+
+  // Listen for visibilitychange / focus / online events for mobile call resilience
+  useEffect(() => {
+    if (!onlineSession || !onlineRoom) return;
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        void forceSyncOnlineRoom();
+      }
+    };
+    const handleFocus = () => {
+      void forceSyncOnlineRoom();
+    };
+    const handleOnline = () => {
+      void forceSyncOnlineRoom();
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('online', handleOnline);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('online', handleOnline);
+    };
+  }, [onlineSession, !!onlineRoom, forceSyncOnlineRoom]);
+
+  // Subtle sound cues when online phase transitions into reveals/summaries
+  useEffect(() => {
+    if (!onlineRoom) {
+      prevOnlinePhaseRef.current = null;
+      return;
+    }
+    const prev = prevOnlinePhaseRef.current;
+    const curr = onlineRoom.phase;
+    prevOnlinePhaseRef.current = curr;
+    if (!prev || prev === curr) return;
+
+    if (curr === 'vote_results' && onlineRoom.voteOutcome?.eliminatedPlayerId && onlineRoom.round) {
+      const wasImpostor =
+        !!onlineRoom.round.assignments[onlineRoom.voteOutcome.eliminatedPlayerId]?.isImpostor;
+      playDramaticRevealSound(wasImpostor);
+    } else if (curr === 'round_summary' && onlineRoom.round) {
+      if (onlineRoom.round.winner === 'civilians' || onlineRoom.round.winner === 'impostors') {
+        playVictoryFanfare(onlineRoom.round.winner === 'civilians');
+      }
+    }
+  }, [onlineRoom]);
+
+  const applyOnlineMutation = useCallback(
+    async (mutator: (current: OnlineRoomState) => OnlineRoomState) => {
+      const session = onlineSessionRef.current;
+      if (!session) return;
+      try {
+        const updated = await mutateRoomRow(session.roomCode, mutator);
+        if (updated) {
+          setOnlineRoom(updated);
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Sync failed — tap Sync to retry.';
+        showNotice(msg);
+      }
+    },
+    [showNotice]
+  );
 
   const handleToggleMute = () => {
     unlockIOSAudio();
@@ -207,6 +470,22 @@ export default function App() {
   };
 
   const handleResetHistory = () => {
+    if (onlineRoom && onlineSession) {
+      void applyOnlineMutation((curr) => ({
+        ...curr,
+        version: curr.version + 1,
+        usedHistory:
+          curr.settings.mode === 'word'
+            ? { ...curr.usedHistory, word: [] }
+            : { ...curr.usedHistory, question: [] },
+        updatedAt: Date.now(),
+      }));
+      showNotice(
+        `Reset room ${onlineRoom.settings.mode === 'word' ? 'words' : 'questions'} history.`
+      );
+      return;
+    }
+
     setUsedHistory((prev) =>
       settings.mode === 'word' ? { ...prev, word: [] } : { ...prev, question: [] }
     );
@@ -214,26 +493,214 @@ export default function App() {
   };
 
   const handleSaveCustomDeck = (deck: CategoryDeck) => {
-    setCustomDecks((prev) => {
-      const exists = prev.some((d) => d.id === deck.id);
-      if (exists) {
-        return prev.map((d) => (d.id === deck.id ? deck : d));
-      }
-      return [deck, ...prev];
-    });
+    const nextDecks = customDecks.some((d) => d.id === deck.id)
+      ? customDecks.map((d) => (d.id === deck.id ? deck : d))
+      : [deck, ...customDecks];
+    setCustomDecks(nextDecks);
     setSelectedDeckIds((prev) => (prev.includes(deck.id) ? prev : [...prev, deck.id]));
+
+    if (onlineRoom && onlineSession && onlineRoom.hostId === onlineSession.playerId) {
+      const nextSelected = onlineRoom.selectedDeckIds.includes(deck.id)
+        ? onlineRoom.selectedDeckIds
+        : [...onlineRoom.selectedDeckIds, deck.id];
+      void applyOnlineMutation((curr) =>
+        updateRoomLobbyConfig(curr, {
+          customDecks: nextDecks,
+          selectedDeckIds: nextSelected,
+        })
+      );
+    }
+
     showNotice(`Saved custom deck "${deck.name}"`);
   };
 
   const handleDeleteCustomDeck = (deckId: string) => {
-    setCustomDecks((prev) => prev.filter((d) => d.id !== deckId));
+    const nextDecks = customDecks.filter((d) => d.id !== deckId);
+    setCustomDecks(nextDecks);
     setSelectedDeckIds((prev) => prev.filter((id) => id !== deckId));
+
+    if (onlineRoom && onlineSession && onlineRoom.hostId === onlineSession.playerId) {
+      void applyOnlineMutation((curr) =>
+        updateRoomLobbyConfig(curr, {
+          customDecks: nextDecks,
+          selectedDeckIds: curr.selectedDeckIds.filter((id) => id !== deckId),
+        })
+      );
+    }
   };
 
   const handleResetScores = () => {
+    if (onlineRoom && onlineSession) {
+      if (onlineRoom.hostId !== onlineSession.playerId) {
+        showNotice('Only the room host can reset room scores.');
+        return;
+      }
+      void applyOnlineMutation((curr) => resetOnlineScores(curr));
+      showNotice('Room scoreboard reset to 0.');
+      return;
+    }
+
     setScores({});
     setRoundScoreDeltas({});
     showNotice('Scoreboard reset to 0.');
+  };
+
+  // Online Multiplayer Host / Join / Leave
+  const handleHostOnlineRoom = async () => {
+    unlockIOSAudio();
+    setOnlineError(null);
+
+    if (!supabaseInfo.creds) {
+      setShowSupabaseConfig(true);
+      return;
+    }
+
+    const hostName = onlineProfile.name.trim() || 'Host';
+    if (!onlineProfile.name.trim()) {
+      setOnlineProfile((prev) => ({ ...prev, name: hostName }));
+    }
+
+    setOnlineLoading(true);
+    try {
+      const playerId = onlineSession?.playerId || createClientPlayerId();
+      let createdRoom: OnlineRoomState | null = null;
+      let lastErr: unknown = null;
+
+      for (let attempt = 0; attempt < 4; attempt++) {
+        const code = generateRoomCode();
+        const initial = createInitialRoomState({
+          code,
+          host: {
+            id: playerId,
+            name: hostName.slice(0, 22),
+            emoji: onlineProfile.emoji || '🦊',
+            color: onlineProfile.color || '#22D3EE',
+          },
+          settings,
+          selectedDeckIds,
+          customDecks,
+        });
+        try {
+          createdRoom = await createRoomRow(initial);
+          break;
+        } catch (err) {
+          lastErr = err;
+          const msg = err instanceof Error ? err.message : '';
+          if (msg.includes('duplicate') || msg.includes('23505')) {
+            continue;
+          }
+          throw err;
+        }
+      }
+
+      if (!createdRoom) {
+        throw lastErr instanceof Error ? lastErr : new Error('Failed to create room.');
+      }
+
+      const session: OnlineSessionIdentity = { roomCode: createdRoom.code, playerId };
+      saveOnlineSession(session);
+      setOnlineSession(session);
+      setOnlineRoom(createdRoom);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unable to host room.';
+      setOnlineError(msg);
+      if (
+        msg.includes('rooms') ||
+        msg.includes('relation') ||
+        msg.includes('schema cache') ||
+        msg.includes('not configured')
+      ) {
+        setShowSupabaseConfig(true);
+      }
+    } finally {
+      setOnlineLoading(false);
+    }
+  };
+
+  const handleJoinOnlineRoom = async () => {
+    unlockIOSAudio();
+    setOnlineError(null);
+
+    if (!supabaseInfo.creds) {
+      setShowSupabaseConfig(true);
+      return;
+    }
+
+    const code = normalizeRoomCode(joinCodeDraft);
+    if (code.length < 4) {
+      setOnlineError('Enter a 4-letter room code.');
+      return;
+    }
+
+    const cleanName = onlineProfile.name.trim();
+    if (!cleanName) {
+      setOnlineError('Enter your name before joining.');
+      return;
+    }
+
+    setOnlineLoading(true);
+    try {
+      const existing = await fetchRoomRow(code);
+      if (!existing) {
+        setOnlineError(`No active room found with code "${code}".`);
+        return;
+      }
+
+      const savedId =
+        onlineSession?.roomCode === code ? onlineSession.playerId : createClientPlayerId();
+      const alreadyInRoom = existing.players.some((p) => p.id === savedId);
+
+      if (existing.phase !== 'lobby' && !alreadyInRoom) {
+        setOnlineError('That round is already in progress. Wait for the next lobby.');
+        return;
+      }
+
+      const updated = await mutateRoomRow(code, (curr) =>
+        addOrRejoinRoomPlayer(curr, {
+          id: savedId,
+          name: cleanName.slice(0, 22),
+          emoji: onlineProfile.emoji || '🦊',
+          color: onlineProfile.color || '#22D3EE',
+        })
+      );
+
+      if (!updated) {
+        setOnlineError('Could not join room. Check the code and try again.');
+        return;
+      }
+
+      const session: OnlineSessionIdentity = { roomCode: updated.code, playerId: savedId };
+      saveOnlineSession(session);
+      setOnlineSession(session);
+      setOnlineRoom(updated);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unable to join room.';
+      setOnlineError(msg);
+      if (msg.includes('rooms') || msg.includes('relation') || msg.includes('schema cache')) {
+        setShowSupabaseConfig(true);
+      }
+    } finally {
+      setOnlineLoading(false);
+    }
+  };
+
+  const handleLeaveOnlineRoom = async () => {
+    const currentSession = onlineSession;
+    const currentRoom = onlineRoom;
+
+    saveOnlineSession(null);
+    setOnlineSession(null);
+    setOnlineRoom(null);
+
+    if (currentSession && currentRoom && currentRoom.phase === 'lobby') {
+      try {
+        await mutateRoomRow(currentSession.roomCode, (curr) =>
+          removeRoomPlayer(curr, currentSession.playerId)
+        );
+      } catch {
+        // Ignore network errors while leaving
+      }
+    }
   };
 
   const applyRoundScores = useCallback(
@@ -287,10 +754,10 @@ export default function App() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const params = new URLSearchParams(window.location.search);
-    if (params.get('autostart') === '1' && phase === 'lobby' && !round) {
+    if (params.get('autostart') === '1' && phase === 'lobby' && !round && !onlineRoom) {
       startNewRound();
     }
-  }, [phase, round, startNewRound]);
+  }, [phase, round, onlineRoom, startNewRound]);
 
   const handleEliminatePlayer = (targetPlayerId: string) => {
     if (!round) return;
@@ -333,19 +800,25 @@ export default function App() {
     setPhase('round_summary');
   };
 
-  const hasAnyScores = Object.values(scores).some((v) => v > 0);
+  const activePlayersForScoreboard: Player[] = onlineRoom ? onlineRoom.players : players;
+  const activeScoresForModal = onlineRoom ? onlineRoom.scores : scores;
+  const activeScoreboardEnabled = onlineRoom
+    ? onlineRoom.settings.scoreboardEnabled
+    : settings.scoreboardEnabled;
+  const hasAnyScores = Object.values(activeScoresForModal).some((v) => v > 0);
 
   return (
     <div
       className={`${
         isPassLocked ? 'h-[100dvh] overflow-hidden overscroll-none' : 'min-h-[100dvh]'
       } bg-[#09090E] text-[#F4F4F8] flex flex-col`}
-      data-game-phase={phase}
+      data-game-phase={onlineRoom ? `online:${onlineRoom.phase}` : phase}
     >
       <HeaderBar
         phase={phase}
+        isOnlineRoom={!!onlineRoom}
         isMuted={isMuted}
-        scoreboardEnabled={settings.scoreboardEnabled}
+        scoreboardEnabled={activeScoreboardEnabled}
         hasScores={hasAnyScores}
         onToggleMute={handleToggleMute}
         onOpenScoreboard={() => setShowScoreboard(true)}
@@ -368,23 +841,21 @@ export default function App() {
       )}
 
       {/* Screens */}
-      {phase === 'lobby' && (
-        <SetupHub
-          players={players}
-          groups={groups}
-          decks={allDecks}
-          selectedDeckIds={selectedDeckIds}
-          settings={settings}
-          usedHistory={usedHistory}
-          canStartError={canStartError}
-          onChangePlayers={setPlayers}
-          onSaveGroup={handleSaveGroup}
-          onLoadGroup={handleLoadGroup}
-          onDeleteGroup={handleDeleteGroup}
-          onToggleDeck={handleToggleDeck}
-          onSelectAllDecks={handleSelectAllDecks}
-          onDeselectAllDecks={handleDeselectAllDecks}
-          onResetHistory={handleResetHistory}
+      {onlineRoom && onlineSession ? (
+        <OnlineRoomView
+          room={onlineRoom}
+          myPlayerId={onlineSession.playerId}
+          allDecks={allDecks}
+          isSyncing={isSyncingOnline}
+          realtimeStatus={realtimeStatus}
+          onForceSync={() => void forceSyncOnlineRoom()}
+          onLeaveRoom={() => void handleLeaveOnlineRoom()}
+          onUpdateLobbyConfig={(patch) =>
+            void applyOnlineMutation((curr) => updateRoomLobbyConfig(curr, patch))
+          }
+          onKickPlayer={(playerId) =>
+            void applyOnlineMutation((curr) => removeRoomPlayer(curr, playerId))
+          }
           onCreateCustomDeck={() => {
             setEditingDeck(null);
             setShowCustomDeckModal(true);
@@ -393,73 +864,174 @@ export default function App() {
             setEditingDeck(deck);
             setShowCustomDeckModal(true);
           }}
-          onUpdateSettings={handleUpdateSettings}
-          onStartGame={startNewRound}
-          onOpenHowToPlay={() => setShowHowToPlay(true)}
-        />
-      )}
-
-      {phase === 'privacy_pass' && round && (
-        <PrivacyPassScreen
-          round={round}
-          players={players}
-          onSubmitAnswer={(playerId, answer) =>
-            setRound((prev) => (prev ? submitPlayerAnswer(prev, playerId, answer) : prev))
-          }
-          onCompletePassLoop={() => setPhase('discussion')}
-        />
-      )}
-
-      {phase === 'discussion' && round && (
-        <DiscussionScreen
-          round={round}
-          players={players}
-          initialTimerSeconds={settings.discussionTimer}
-          onStartVoting={() => setPhase('voting')}
-          onRevealAllRoles={handleRevealAllRoles}
-        />
-      )}
-
-      {(phase === 'voting' || phase === 'elimination_reveal') && round && (
-        <VotingScreen
-          round={round}
-          players={players}
-          showEliminationReveal={phase === 'elimination_reveal'}
-          onEliminatePlayer={handleEliminatePlayer}
-          onCallZeroImpostors={handleCallZeroImpostors}
-          onBackToDiscussion={() => setPhase('discussion')}
-          onContinueSurvival={() => setPhase('discussion')}
-          onGoToSummary={handleGoToSummary}
-        />
-      )}
-
-      {phase === 'round_summary' && round && (
-        <RoundSummaryScreen
-          round={round}
-          players={players}
-          scores={scores}
-          roundScoreDeltas={roundScoreDeltas}
-          scoreboardEnabled={settings.scoreboardEnabled}
-          onResetScores={handleResetScores}
-          onPlayAgain={startNewRound}
-          onBackToLobby={() => {
-            setPhase('lobby');
-            setRound(null);
+          onResetHistory={handleResetHistory}
+          onStartRound={() => {
+            unlockIOSAudio();
+            void applyOnlineMutation((curr) => startOnlineRound(curr, allDecks));
           }}
+          onWordReady={() =>
+            void applyOnlineMutation((curr) =>
+              markPlayerReadyWordMode(curr, onlineSession.playerId)
+            )
+          }
+          onForceDiscussion={() =>
+            void applyOnlineMutation((curr) => forceStartOnlineDiscussion(curr))
+          }
+          onSubmitAnswer={(answer) =>
+            void applyOnlineMutation((curr) =>
+              submitOnlineQuestionAnswer(curr, onlineSession.playerId, answer)
+            )
+          }
+          onTimerAction={(action) =>
+            void applyOnlineMutation((curr) => updateOnlineTimer(curr, action))
+          }
+          onStartVoting={() =>
+            void applyOnlineMutation((curr) => startOnlineVoting(curr))
+          }
+          onBackToDiscussion={() =>
+            void applyOnlineMutation((curr) => backToOnlineDiscussion(curr))
+          }
+          onCastVote={(targetId) =>
+            void applyOnlineMutation((curr) =>
+              castOnlineVote(curr, onlineSession.playerId, targetId)
+            )
+          }
+          onForceRevealVotes={() =>
+            void applyOnlineMutation((curr) => resolveOnlineVotes(curr))
+          }
+          onAdvanceAfterVote={() =>
+            void applyOnlineMutation((curr) => advanceAfterVoteResults(curr))
+          }
+          onRevealAllRoles={() =>
+            void applyOnlineMutation((curr) => revealAllRolesOnline(curr))
+          }
+          onResetScores={handleResetScores}
+          onReturnToLobby={() =>
+            void applyOnlineMutation((curr) => returnRoomToLobby(curr))
+          }
         />
+      ) : (
+        <>
+          {phase === 'lobby' && (
+            <SetupHub
+              players={players}
+              groups={groups}
+              decks={allDecks}
+              selectedDeckIds={selectedDeckIds}
+              settings={settings}
+              usedHistory={usedHistory}
+              canStartError={canStartError}
+              playStyle={playStyle}
+              onlineActionTab={onlineActionTab}
+              onlineProfile={onlineProfile}
+              joinCodeDraft={joinCodeDraft}
+              onlineError={onlineError}
+              onlineLoading={onlineLoading}
+              supabaseSource={supabaseInfo.source}
+              onChangePlayStyle={(style) => {
+                setOnlineError(null);
+                setPlayStyle(style);
+              }}
+              onChangeOnlineActionTab={(tab) => {
+                setOnlineError(null);
+                setOnlineActionTab(tab);
+              }}
+              onChangeOnlineProfile={(profile) => {
+                setOnlineError(null);
+                setOnlineProfile(profile);
+              }}
+              onChangeJoinCodeDraft={(code) => {
+                setOnlineError(null);
+                setJoinCodeDraft(code);
+              }}
+              onHostOnlineRoom={() => void handleHostOnlineRoom()}
+              onJoinOnlineRoom={() => void handleJoinOnlineRoom()}
+              onOpenSupabaseConfig={() => setShowSupabaseConfig(true)}
+              onChangePlayers={setPlayers}
+              onSaveGroup={handleSaveGroup}
+              onLoadGroup={handleLoadGroup}
+              onDeleteGroup={handleDeleteGroup}
+              onToggleDeck={handleToggleDeck}
+              onSelectAllDecks={handleSelectAllDecks}
+              onDeselectAllDecks={handleDeselectAllDecks}
+              onResetHistory={handleResetHistory}
+              onCreateCustomDeck={() => {
+                setEditingDeck(null);
+                setShowCustomDeckModal(true);
+              }}
+              onEditCustomDeck={(deck) => {
+                setEditingDeck(deck);
+                setShowCustomDeckModal(true);
+              }}
+              onUpdateSettings={handleUpdateSettings}
+              onStartGame={startNewRound}
+              onOpenHowToPlay={() => setShowHowToPlay(true)}
+            />
+          )}
+
+          {phase === 'privacy_pass' && round && (
+            <PrivacyPassScreen
+              round={round}
+              players={players}
+              onSubmitAnswer={(playerId, answer) =>
+                setRound((prev) => (prev ? submitPlayerAnswer(prev, playerId, answer) : prev))
+              }
+              onCompletePassLoop={() => setPhase('discussion')}
+            />
+          )}
+
+          {phase === 'discussion' && round && (
+            <DiscussionScreen
+              round={round}
+              players={players}
+              initialTimerSeconds={settings.discussionTimer}
+              onStartVoting={() => setPhase('voting')}
+              onRevealAllRoles={handleRevealAllRoles}
+            />
+          )}
+
+          {(phase === 'voting' || phase === 'elimination_reveal') && round && (
+            <VotingScreen
+              round={round}
+              players={players}
+              showEliminationReveal={phase === 'elimination_reveal'}
+              onEliminatePlayer={handleEliminatePlayer}
+              onCallZeroImpostors={handleCallZeroImpostors}
+              onBackToDiscussion={() => setPhase('discussion')}
+              onContinueSurvival={() => setPhase('discussion')}
+              onGoToSummary={handleGoToSummary}
+            />
+          )}
+
+          {phase === 'round_summary' && round && (
+            <RoundSummaryScreen
+              round={round}
+              players={players}
+              scores={scores}
+              roundScoreDeltas={roundScoreDeltas}
+              scoreboardEnabled={settings.scoreboardEnabled}
+              onResetScores={handleResetScores}
+              onPlayAgain={startNewRound}
+              onBackToLobby={() => {
+                setPhase('lobby');
+                setRound(null);
+              }}
+            />
+          )}
+        </>
       )}
 
       {/* Modals */}
       <HowToPlayModal
         isOpen={showHowToPlay}
-        initialMode={settings.mode}
+        initialMode={onlineRoom ? onlineRoom.settings.mode : settings.mode}
         onClose={() => setShowHowToPlay(false)}
       />
 
       <ScoreboardModal
         isOpen={showScoreboard}
-        players={players}
-        scores={scores}
+        players={activePlayersForScoreboard}
+        scores={activeScoresForModal}
         onResetScores={handleResetScores}
         onClose={() => setShowScoreboard(false)}
       />
@@ -471,13 +1043,23 @@ export default function App() {
 
       <CustomDeckModal
         isOpen={showCustomDeckModal}
-        initialMode={settings.mode}
+        initialMode={onlineRoom ? onlineRoom.settings.mode : settings.mode}
         editingDeck={editingDeck}
         onSave={handleSaveCustomDeck}
         onDelete={handleDeleteCustomDeck}
         onClose={() => {
           setShowCustomDeckModal(false);
           setEditingDeck(null);
+        }}
+      />
+
+      <SupabaseConfigModal
+        isOpen={showSupabaseConfig}
+        onClose={() => setShowSupabaseConfig(false)}
+        onSaved={() => {
+          setSupabaseConfigTick((t) => t + 1);
+          setOnlineError(null);
+          showNotice('Supabase connection updated!');
         }}
       />
     </div>

@@ -115,3 +115,68 @@ export interface UsedHistory {
   word: string[];
   question: string[];
 }
+
+export interface OnlineRoomPlayer {
+  id: string;
+  name: string;
+  emoji: string;
+  color: string;
+  isHost: boolean;
+  joinedAt: number;
+  lastSeenAt: number;
+}
+
+export type OnlinePhase =
+  | 'lobby'
+  | 'role_reveal'
+  | 'discussion'
+  | 'voting'
+  | 'vote_results'
+  | 'round_summary';
+
+export interface VoteOutcome {
+  tallies: Record<string, number>;
+  eliminatedPlayerId: string | null;
+  isTie: boolean;
+  calledZeroImpostors: boolean;
+  zeroCallMajority: boolean;
+  revealedAt: number;
+}
+
+export interface OnlineRoomState {
+  code: string;
+  version: number;
+  hostId: string;
+  phase: OnlinePhase;
+  players: OnlineRoomPlayer[];
+  settings: GameSettings;
+  selectedDeckIds: string[];
+  customDecks: CategoryDeck[];
+  usedHistory: UsedHistory;
+  scores: Record<string, number>;
+  roundScoreDeltas: Record<string, number>;
+  roundNumber: number;
+  round: RoundState | null;
+  readyPlayerIds: string[];
+  timerEndsAt: number | null;
+  timerPausedRemainingSec: number | null;
+  votes: Record<string, string>;
+  voteOutcome: VoteOutcome | null;
+  updatedAt: number;
+}
+
+export interface OnlineSessionIdentity {
+  roomCode: string;
+  playerId: string;
+}
+
+export interface OnlineProfile {
+  name: string;
+  emoji: string;
+  color: string;
+}
+
+export interface SupabaseCredentials {
+  url: string;
+  anonKey: string;
+}

@@ -8,6 +8,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG_ENTRIES: ChangelogEntry[] = [
   {
+    version: 'v1.8',
+    date: 'Nov 22, 2026',
+    time: '10:58 PM',
+    title: 'Online Multiplayer',
+    items: [
+      'Added Online Multiplayer rooms with 4-letter codes.',
+      'Added live synced voting and mobile call reconnect.',
+    ],
+  },
+  {
     version: 'v1.7',
     date: 'Nov 22, 2026',
     time: '10:38 PM',

@@ -16,6 +16,7 @@ import { playTapSound } from '../utils/audio';
 
 interface HeaderBarProps {
   phase: GamePhase;
+  isOnlineRoom?: boolean;
   isMuted: boolean;
   scoreboardEnabled: boolean;
   hasScores: boolean;
@@ -27,6 +28,7 @@ interface HeaderBarProps {
 
 export const HeaderBar: React.FC<HeaderBarProps> = ({
   phase,
+  isOnlineRoom = false,
   isMuted,
   scoreboardEnabled,
   hasScores,
@@ -39,7 +41,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
   const isOnline = useOnlineStatus();
   const [showIOSInstall, setShowIOSInstall] = useState(false);
 
-  const inActiveGame = phase !== 'lobby';
+  const inActiveGame = !isOnlineRoom && phase !== 'lobby';
 
   return (
     <>

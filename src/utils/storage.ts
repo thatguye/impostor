@@ -1,8 +1,11 @@
 import {
   CategoryDeck,
   GameSettings,
+  OnlineProfile,
+  OnlineSessionIdentity,
   Player,
   PlayerGroup,
+  SupabaseCredentials,
   UsedHistory,
 } from '../types/game';
 
@@ -15,6 +18,9 @@ const KEYS = {
   USED_HISTORY: 'impostor_used_history_v1',
   SCORES: 'impostor_scores_v1',
   MUTED: 'impostor_muted_v1',
+  ONLINE_SESSION: 'impostor_online_session_v1',
+  ONLINE_PROFILE: 'impostor_online_profile_v1',
+  SUPABASE_CREDS: 'impostor_supabase_creds_v1',
 } as const;
 
 export const DEFAULT_PLAYERS: Player[] = [
@@ -131,4 +137,83 @@ export function loadMuted(): boolean {
 
 export function saveMuted(muted: boolean): void {
   writeJSON(KEYS.MUTED, muted);
+}
+
+export function loadOnlineSession(): OnlineSessionIdentity | null {
+  const loaded = readJSON<OnlineSessionIdentity | null>(KEYS.ONLINE_SESSION, null);
+  if (
+    loaded &&
+    typeof loaded.roomCode === 'string' &&
+    loaded.roomCode.trim().length >= 4 &&
+    typeof loaded.playerId === 'string' &&
+    loaded.playerId.trim().length > 0
+  ) {
+    return {
+      roomCode: loaded.roomCode.trim().toUpperCase(),
+      playerId: loaded.playerId.trim(),
+    };
+  }
+  return null;
+}
+
+export function saveOnlineSession(session: OnlineSessionIdentity | null): void {
+  if (typeof window === 'undefined') return;
+  try {
+    if (!session) {
+      window.localStorage.removeItem(KEYS.ONLINE_SESSION);
+    } else {
+      window.localStorage.setItem(KEYS.ONLINE_SESSION, JSON.stringify(session));
+    }
+  } catch {
+    // Ignore storage quota errors gracefully
+  }
+}
+
+export function loadOnlineProfile(): OnlineProfile {
+  const loaded = readJSON<Partial<OnlineProfile>>(KEYS.ONLINE_PROFILE, {});
+  return {
+    name: typeof loaded.name === 'string' ? loaded.name : '',
+    emoji: typeof loaded.emoji === 'string' && loaded.emoji ? loaded.emoji : '🦊',
+    color: typeof loaded.color === 'string' && loaded.color ? loaded.color : '#22D3EE',
+  };
+}
+
+export function saveOnlineProfile(profile: OnlineProfile): void {
+  writeJSON(KEYS.ONLINE_PROFILE, profile);
+}
+
+export function loadSupabaseCredentials(): SupabaseCredentials | null {
+  const loaded = readJSON<Partial<SupabaseCredentials> | null>(KEYS.SUPABASE_CREDS, null);
+  if (
+    loaded &&
+    typeof loaded.url === 'string' &&
+    loaded.url.trim().length > 0 &&
+    typeof loaded.anonKey === 'string' &&
+    loaded.anonKey.trim().length > 0
+  ) {
+    return {
+      url: loaded.url.trim().replace(/\/+$/, ''),
+      anonKey: loaded.anonKey.trim(),
+    };
+  }
+  return null;
+}
+
+export function saveSupabaseCredentials(creds: SupabaseCredentials | null): void {
+  if (typeof window === 'undefined') return;
+  try {
+    if (!creds || !creds.url.trim() || !creds.anonKey.trim()) {
+      window.localStorage.removeItem(KEYS.SUPABASE_CREDS);
+    } else {
+      window.localStorage.setItem(
+        KEYS.SUPABASE_CREDS,
+        JSON.stringify({
+          url: creds.url.trim().replace(/\/+$/, ''),
+          anonKey: creds.anonKey.trim(),
+        })
+      );
+    }
+  } catch {
+    // Ignore storage quota errors gracefully
+  }
 }
