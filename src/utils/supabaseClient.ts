@@ -19,12 +19,15 @@ create policy "Allow anonymous party room access"
 
 alter publication supabase_realtime add table public.rooms;`;
 
+export const DEFAULT_SUPABASE_URL = 'https://bjnhbwqssckkdouohswe.supabase.co';
+export const DEFAULT_SUPABASE_ANON_KEY = 'sb_publishable_BgrOzjkhMZF28tWKVtAOkA_4d6NIo1E';
+
 let cachedClient: SupabaseClient | null = null;
 let cachedKey = '';
 
 export function resolveSupabaseCredentials(): {
-  creds: SupabaseCredentials | null;
-  source: 'env' | 'local' | 'none';
+  creds: SupabaseCredentials;
+  source: 'env' | 'local' | 'default';
 } {
   const envUrl = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.trim();
   const envKey = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined)?.trim();
@@ -41,7 +44,13 @@ export function resolveSupabaseCredentials(): {
     return { creds: localCreds, source: 'local' };
   }
 
-  return { creds: null, source: 'none' };
+  return {
+    creds: {
+      url: DEFAULT_SUPABASE_URL,
+      anonKey: DEFAULT_SUPABASE_ANON_KEY,
+    },
+    source: 'default',
+  };
 }
 
 export function resetCachedSupabaseClient(): void {

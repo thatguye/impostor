@@ -45,7 +45,7 @@ interface SetupHubProps {
   joinCodeDraft: string;
   onlineError: string | null;
   onlineLoading: boolean;
-  supabaseSource: 'env' | 'local' | 'none';
+  supabaseSource: 'env' | 'default' | 'local' | 'none';
   onChangePlayStyle: (style: 'pass_and_play' | 'online') => void;
   onChangeOnlineActionTab: (tab: 'host' | 'join') => void;
   onChangeOnlineProfile: (profile: OnlineProfile) => void;
@@ -493,7 +493,7 @@ export const SetupHub: React.FC<SetupHubProps> = ({
                   </p>
                 )}
 
-                {/* Supabase Connection Status & Fallback Modal Button */}
+                {/* Supabase Connection Status */}
                 <div className="flex items-center justify-between gap-2 pt-1 border-t border-white/[0.06]">
                   <span className="flex items-center gap-1.5 text-[11px] text-[#9898B0]">
                     <span
@@ -501,13 +501,13 @@ export const SetupHub: React.FC<SetupHubProps> = ({
                         supabaseSource === 'none' ? 'bg-amber-400' : 'bg-emerald-400'
                       }`}
                     />
-                    {supabaseSource === 'env'
+                    {supabaseSource === 'env' || supabaseSource === 'default'
                       ? 'Supabase Ready'
                       : supabaseSource === 'local'
                       ? 'Custom Supabase Saved'
                       : 'Supabase Setup Needed'}
                   </span>
-                  {supabaseSource !== 'env' && (
+                  {supabaseSource !== 'env' && supabaseSource !== 'default' && (
                     <button
                       type="button"
                       data-testid="open-supabase-config-btn"

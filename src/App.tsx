@@ -65,6 +65,7 @@ import {
 import {
   createRoomRow,
   fetchRoomRow,
+  getSupabaseClient,
   mutateRoomRow,
   resolveSupabaseCredentials,
   subscribeToRoomRow,
@@ -152,6 +153,11 @@ export default function App() {
   const supabaseInfo = useMemo(() => {
     void supabaseConfigTick;
     return resolveSupabaseCredentials();
+  }, [supabaseConfigTick]);
+
+  // Auto-initialize Supabase client out of the box with built-in/env credentials
+  useEffect(() => {
+    getSupabaseClient();
   }, [supabaseConfigTick]);
 
   // Unlock iOS silent-switch audio on first user interaction
@@ -549,11 +555,7 @@ export default function App() {
   const handleHostOnlineRoom = async () => {
     unlockIOSAudio();
     setOnlineError(null);
-
-    if (!supabaseInfo.creds) {
-      setShowSupabaseConfig(true);
-      return;
-    }
+    getSupabaseClient();
 
     const hostName = onlineProfile.name.trim() || 'Host';
     if (!onlineProfile.name.trim()) {
@@ -604,14 +606,6 @@ export default function App() {
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unable to host room.';
       setOnlineError(msg);
-      if (
-        msg.includes('rooms') ||
-        msg.includes('relation') ||
-        msg.includes('schema cache') ||
-        msg.includes('not configured')
-      ) {
-        setShowSupabaseConfig(true);
-      }
     } finally {
       setOnlineLoading(false);
     }
@@ -620,11 +614,7 @@ export default function App() {
   const handleJoinOnlineRoom = async () => {
     unlockIOSAudio();
     setOnlineError(null);
-
-    if (!supabaseInfo.creds) {
-      setShowSupabaseConfig(true);
-      return;
-    }
+    getSupabaseClient();
 
     const code = normalizeRoomCode(joinCodeDraft);
     if (code.length < 4) {
@@ -676,9 +666,6 @@ export default function App() {
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unable to join room.';
       setOnlineError(msg);
-      if (msg.includes('rooms') || msg.includes('relation') || msg.includes('schema cache')) {
-        setShowSupabaseConfig(true);
-      }
     } finally {
       setOnlineLoading(false);
     }
