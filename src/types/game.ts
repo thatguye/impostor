@@ -21,6 +21,7 @@ export interface PlayerGroup {
 export interface WordEntry {
   id: string;
   word: string;
+  description?: string;
   hints: [string] | [string, string];
 }
 
@@ -62,6 +63,8 @@ export interface PlayerRoleAssignment {
   eliminated: boolean;
   /** Word mode: secret word for civilians, null for impostors */
   secretWord: string | null;
+  /** Word mode: brief definition/context shown only to civilians, null for impostors */
+  wordDescription: string | null;
   /** Word mode: optional hint for impostors if hints enabled */
   hintWord: string | null;
   /** Question mode: main question for civilians, decoy for impostors */
@@ -81,6 +84,7 @@ export interface RoundState {
   promptId: string;
   /** Word mode fields */
   secretWord: string | null;
+  secretWordDescription: string | null;
   allHints: string[];
   /** Question mode fields */
   mainQuestion: string | null;

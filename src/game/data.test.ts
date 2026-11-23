@@ -9,17 +9,17 @@ test('library includes at least 22 built-in unlocked categories', () => {
   );
 });
 
-test('every category has 100+ unique words with hints and 100+ unique paired questions', () => {
+test('every category has 50+ unique words with descriptions and hints, and 50+ unique paired questions', () => {
   const seenIds = new Set<string>();
 
   for (const cat of BUILT_IN_CATEGORIES) {
     assert.ok(
-      cat.words.length >= 100,
-      `Category "${cat.name}" has only ${cat.words.length} words (expected >= 100)`
+      cat.words.length >= 50 && cat.words.length <= 65,
+      `Category "${cat.name}" has ${cat.words.length} words (expected 50-65)`
     );
     assert.ok(
-      cat.questions.length >= 100,
-      `Category "${cat.name}" has only ${cat.questions.length} questions (expected >= 100)`
+      cat.questions.length >= 50 && cat.questions.length <= 65,
+      `Category "${cat.name}" has ${cat.questions.length} questions (expected 50-65)`
     );
 
     const wordSet = new Set<string>();
@@ -31,6 +31,11 @@ test('every category has 100+ unique words with hints and 100+ unique paired que
       assert.ok(normalized.length > 0, `Empty word in ${cat.name}`);
       assert.ok(!wordSet.has(normalized), `Duplicate word "${w.word}" in ${cat.name}`);
       wordSet.add(normalized);
+
+      assert.ok(
+        typeof w.description === 'string' && w.description.trim().length >= 12,
+        `Missing or too-short description for "${w.word}" in ${cat.name}`
+      );
 
       assert.ok(w.hints.length >= 1 && w.hints.length <= 2, `Invalid hints count for ${w.word}`);
       for (const hint of w.hints) {

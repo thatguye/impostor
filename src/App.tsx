@@ -45,6 +45,7 @@ import { HeaderBar } from './components/HeaderBar';
 import { SetupHub } from './components/SetupHub';
 import { HowToPlayModal } from './components/HowToPlayModal';
 import { ScoreboardModal } from './components/ScoreboardModal';
+import { ChangelogModal } from './components/ChangelogModal';
 import { CustomDeckModal } from './components/CustomDeckModal';
 import { PrivacyPassScreen } from './components/PrivacyPassScreen';
 import { DiscussionScreen } from './components/DiscussionScreen';
@@ -77,6 +78,7 @@ export default function App() {
   // Modals
   const [showHowToPlay, setShowHowToPlay] = useState(false);
   const [showScoreboard, setShowScoreboard] = useState(false);
+  const [showChangelog, setShowChangelog] = useState(false);
   const [showCustomDeckModal, setShowCustomDeckModal] = useState(false);
   const [editingDeck, setEditingDeck] = useState<CategoryDeck | null>(null);
 
@@ -326,6 +328,7 @@ export default function App() {
         hasScores={hasAnyScores}
         onToggleMute={handleToggleMute}
         onOpenScoreboard={() => setShowScoreboard(true)}
+        onOpenChangelog={() => setShowChangelog(true)}
         onReturnToLobby={() => {
           setPhase('lobby');
           setRound(null);
@@ -438,6 +441,11 @@ export default function App() {
         scores={scores}
         onResetScores={handleResetScores}
         onClose={() => setShowScoreboard(false)}
+      />
+
+      <ChangelogModal
+        isOpen={showChangelog}
+        onClose={() => setShowChangelog(false)}
       />
 
       <CustomDeckModal

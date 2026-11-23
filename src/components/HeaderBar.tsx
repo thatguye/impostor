@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import {
   ArrowLeft,
   Download,
+  History,
   Share,
   Trophy,
   Volume2,
@@ -20,6 +21,7 @@ interface HeaderBarProps {
   hasScores: boolean;
   onToggleMute: () => void;
   onOpenScoreboard: () => void;
+  onOpenChangelog: () => void;
   onReturnToLobby: () => void;
 }
 
@@ -30,6 +32,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
   hasScores,
   onToggleMute,
   onOpenScoreboard,
+  onOpenChangelog,
   onReturnToLobby,
 }) => {
   const { isInstallable, isInstalled, isIOS, install } = usePWAInstall();
@@ -102,6 +105,19 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
                 <span>Install</span>
               </button>
             )}
+
+            <button
+              type="button"
+              onClick={() => {
+                playTapSound();
+                onOpenChangelog();
+              }}
+              aria-label="Open Changelog"
+              className="flex min-h-[44px] min-w-[44px] items-center justify-center gap-1.5 rounded-xl px-2.5 text-sm font-medium text-[#9898B0] hover:bg-white/[0.06] hover:text-[#F4F4F8] transition-colors cursor-pointer"
+            >
+              <History className="h-4 w-4 text-[#9898B0]" aria-hidden="true" />
+              <span className="hidden sm:inline text-xs font-semibold">Updates</span>
+            </button>
 
             {scoreboardEnabled && (
               <button

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ArrowDown,
   ArrowUp,
@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { Player, PlayerGroup } from '../types/game';
 import { PLAYER_AVATAR_COLORS, PLAYER_AVATAR_EMOJIS } from '../data/gameData';
+import { extractSingleIcon } from '../game/engine';
 import { playTapSound } from '../utils/audio';
 
 interface PlayerManagerProps {
@@ -34,10 +35,19 @@ export const PlayerManager: React.FC<PlayerManagerProps> = ({
 }) => {
   const [newName, setNewName] = useState('');
   const [editingAvatarId, setEditingAvatarId] = useState<string | null>(null);
+  const [customIconPlayerId, setCustomIconPlayerId] = useState<string | null>(null);
+  const [customIconDraft, setCustomIconDraft] = useState('');
+  const customIconInputRef = useRef<HTMLInputElement | null>(null);
   const [showGroupsPanel, setShowGroupsPanel] = useState(false);
   const [groupNameInput, setGroupNameInput] = useState('');
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [groupFeedback, setGroupFeedback] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (customIconPlayerId) {
+      customIconInputRef.current?.focus();
+    }
+  }, [customIconPlayerId]);
 
   const handleAddPlayer = (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,10 +83,23 @@ export const PlayerManager: React.FC<PlayerManagerProps> = ({
     );
   };
 
+  const handleApplyCustomIcon = (playerId: string, e: React.FormEvent) => {
+    e.preventDefault();
+    const icon = extractSingleIcon(customIconDraft);
+    if (!icon) return;
+    handleUpdateAvatar(playerId, { emoji: icon });
+    setCustomIconDraft('');
+    setCustomIconPlayerId(null);
+  };
+
   const handleRemove = (id: string) => {
     if (players.length <= 3) return;
     playTapSound();
-    if (editingAvatarId === id) setEditingAvatarId(null);
+    if (editingAvatarId === id) {
+      setEditingAvatarId(null);
+      setCustomIconPlayerId(null);
+      setCustomIconDraft('');
+    }
     onChangePlayers(players.filter((p) => p.id !== id));
   };
 
@@ -272,11 +295,14 @@ export const PlayerManager: React.FC<PlayerManagerProps> = ({
                   type="button"
                   onClick={() => {
                     playTapSound();
-                    setEditingAvatarId(isEditingAvatar ? null : player.id);
+                    const nextId = isEditingAvatar ? null : player.id;
+                    setEditingAvatarId(nextId);
+                    setCustomIconPlayerId(null);
+                    setCustomIconDraft('');
                   }}
                   aria-label={`Customize avatar for ${player.name}`}
                   aria-expanded={isEditingAvatar}
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-lg transition-transform active:scale-95 cursor-pointer"
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl font-display text-lg font-bold leading-none text-[#F4F4F8] transition-transform active:scale-95 cursor-pointer"
                   style={{
                     backgroundColor: `${player.color}22`,
                     border: `1px solid ${isEditingAvatar ? player.color : `${player.color}55`}`,
@@ -354,7 +380,10 @@ export const PlayerManager: React.FC<PlayerManagerProps> = ({
                       <button
                         key={em}
                         type="button"
-                        onClick={() => handleUpdateAvatar(player.id, { emoji: em })}
+                        onClick={() => {
+                          handleUpdateAvatar(player.id, { emoji: em });
+                          setCustomIconPlayerId(null);
+                        }}
                         aria-label={`Set avatar ${em}`}
                         className={`flex h-9 w-9 items-center justify-center rounded-lg text-base cursor-pointer ${
                           player.emoji === em
@@ -365,17 +394,92 @@ export const PlayerManager: React.FC<PlayerManagerProps> = ({
                         {em}
                       </button>
                     ))}
+
+                    {!PLAYER_AVATAR_EMOJIS.includes(player.emoji) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          playTapSound();
+                          setCustomIconPlayerId(player.id);
+                          setCustomIconDraft(player.emoji);
+                        }}
+                        aria-label={`Current custom icon ${player.emoji}`}
+                        className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/15 ring-1 ring-cyan-400 font-display text-base font-bold text-[#F4F4F8] cursor-pointer"
+                      >
+                        {player.emoji}
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      data-testid="custom-icon-trigger"
+                      onClick={() => {
+                        playTapSound();
+                        if (customIconPlayerId === player.id) {
+                          setCustomIconPlayerId(null);
+                          setCustomIconDraft('');
+                        } else {
+                          setCustomIconPlayerId(player.id);
+                          setCustomIconDraft(
+                            PLAYER_AVATAR_EMOJIS.includes(player.emoji) ? '' : player.emoji
+                          );
+                        }
+                      }}
+                      aria-label="Add custom emoji, letter, or symbol"
+                      aria-expanded={customIconPlayerId === player.id}
+                      className={`flex h-9 w-9 items-center justify-center rounded-lg border border-dashed transition-colors cursor-pointer ${
+                        customIconPlayerId === player.id
+                          ? 'border-cyan-400 bg-cyan-400/20 text-cyan-300'
+                          : 'border-cyan-400/45 bg-cyan-400/10 text-cyan-300 hover:bg-cyan-400/20'
+                      }`}
+                    >
+                      <Plus className="h-4 w-4" aria-hidden="true" />
+                    </button>
                   </div>
+
+                  {customIconPlayerId === player.id && (
+                    <form
+                      onSubmit={(e) => handleApplyCustomIcon(player.id, e)}
+                      className="flex items-center gap-2 pt-1"
+                    >
+                      <input
+                        ref={customIconInputRef}
+                        type="text"
+                        data-testid="custom-icon-input"
+                        value={customIconDraft}
+                        onChange={(e) => setCustomIconDraft(e.target.value)}
+                        placeholder="Emoji, letter, or symbol..."
+                        aria-label="Custom emoji, letter, or symbol"
+                        className="flex-1 min-w-0 min-h-[40px] rounded-xl bg-[#14141F] border border-cyan-400/40 px-3 text-sm text-[#F4F4F8] placeholder:text-[#666680] focus:border-cyan-400 focus:outline-none"
+                      />
+                      <button
+                        type="submit"
+                        data-testid="custom-icon-apply"
+                        disabled={!extractSingleIcon(customIconDraft)}
+                        className="flex min-h-[40px] items-center justify-center gap-1 rounded-xl bg-cyan-400 px-3.5 text-xs font-bold text-[#061318] hover:bg-cyan-300 disabled:opacity-40 transition-colors cursor-pointer"
+                      >
+                        <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                        <span>Set</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCustomIconPlayerId(null);
+                          setCustomIconDraft('');
+                        }}
+                        aria-label="Cancel custom icon"
+                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-[#9898B0] hover:bg-white/[0.08] hover:text-white cursor-pointer"
+                      >
+                        <X className="h-4 w-4" aria-hidden="true" />
+                      </button>
+                    </form>
+                  )}
                 </div>
               )}
             </li>
           );
         })}
       </ul>
-
-      <p className="text-xs text-[#75758E]">
-        Tap an avatar to change emoji or color · Drag or tap arrows to set seating order.
-      </p>
     </section>
   );
 };

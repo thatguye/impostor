@@ -6,6 +6,7 @@ import {
   callZeroImpostors,
   createRound,
   eliminatePlayer,
+  extractSingleIcon,
   parseBulkImportQuestions,
   parseBulkImportWords,
   pickUnusedPrompt,
@@ -32,8 +33,8 @@ const smallDeck: CategoryDeck = {
   accent: '#22D3EE',
   description: 'Test',
   words: [
-    { id: 'w1', word: 'Volcano', hints: ['Magma', 'Island'] },
-    { id: 'w2', word: 'Submarine', hints: ['Periscope', 'Deep'] },
+    { id: 'w1', word: 'Volcano', description: 'A mountain vent that erupts molten lava and ash.', hints: ['Magma', 'Island'] },
+    { id: 'w2', word: 'Submarine', description: 'A vessel built to travel and operate deep underwater.', hints: ['Periscope', 'Deep'] },
   ],
   questions: [
     { id: 'q1', main: 'Favorite pizza topping?', decoy: 'Worst pizza topping?' },
@@ -103,16 +104,20 @@ test('word mode assigns secret word to civilians, distinct hints and teammates t
   assert.equal(impostors.length, 2);
   assert.equal(civilians.length, 4);
 
-  // Civilians get secret word, no hint
+  // Civilians get secret word + description, no hint
   for (const c of civilians) {
     assert.equal(c.secretWord, round.secretWord);
+    assert.equal(c.wordDescription, round.secretWordDescription);
+    assert.ok(c.wordDescription && c.wordDescription.length > 5);
     assert.equal(c.hintWord, null);
     assert.deepEqual(c.fellowImpostorNames, []);
   }
 
-  // Impostors get no secret word, distinct hints (deck has 2 hints), and see each other's name
+  // Impostors get no secret word, no description, distinct hints (deck has 2 hints), and see each other's name
   assert.equal(impostors[0].secretWord, null);
   assert.equal(impostors[1].secretWord, null);
+  assert.equal(impostors[0].wordDescription, null);
+  assert.equal(impostors[1].wordDescription, null);
   assert.ok(impostors[0].hintWord);
   assert.ok(impostors[1].hintWord);
   assert.notEqual(impostors[0].hintWord, impostors[1].hintWord);
@@ -244,4 +249,14 @@ test('submitPlayerAnswer stores trimmed answers immutably and rejects empty or u
   const after2 = submitPlayerAnswer(after1, 'p-2', 'Pineapple');
   assert.equal(after2.submittedAnswers['p-1'], 'Pepperoni');
   assert.equal(after2.submittedAnswers['p-2'], 'Pineapple');
+});
+
+test('extractSingleIcon preserves single letters, symbols, and compound emojis', () => {
+  assert.equal(extractSingleIcon('  A  '), 'A');
+  assert.equal(extractSingleIcon('Alex'), 'A');
+  assert.equal(extractSingleIcon('★'), '★');
+  assert.equal(extractSingleIcon('♠️'), '♠️');
+  assert.equal(extractSingleIcon('🥷'), '🥷');
+  assert.equal(extractSingleIcon('🧑‍🚀✨'), '🧑‍🚀');
+  assert.equal(extractSingleIcon('   '), '');
 });

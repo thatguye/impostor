@@ -539,9 +539,20 @@ export const PrivacyPassScreen: React.FC<PrivacyPassScreenProps> = ({
                         <h2 className="font-display text-3xl sm:text-4xl font-extrabold text-white tracking-tight break-words">
                           {assignment.secretWord}
                         </h2>
-                        <p className="text-xs text-cyan-100/70 max-w-xs mx-auto pt-1">
-                          Give a clever clue that proves you know it without handing it to the Impostor.
-                        </p>
+                        {assignment.wordDescription ? (
+                          <div
+                            data-testid="civilian-word-description"
+                            className="mx-auto max-w-xs rounded-2xl bg-black/30 border border-cyan-400/20 px-4 py-2.5"
+                          >
+                            <p className="text-xs text-cyan-50/90 leading-relaxed">
+                              {assignment.wordDescription}
+                            </p>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-cyan-100/70 max-w-xs mx-auto pt-1">
+                            Give a clever clue that proves you know it without handing it to the Impostor.
+                          </p>
+                        )}
                       </div>
                     )}
 
@@ -560,7 +571,7 @@ export const PrivacyPassScreen: React.FC<PrivacyPassScreenProps> = ({
       <div className="w-full space-y-2.5 pt-2">
         {!selectedPlayerId ? (
           <p className="text-center text-xs text-[#666680]">
-            Pass the phone around in any order — everyone taps their own name
+            Tap your own name when it’s your turn
           </p>
         ) : !isQuestionMode ? (
           <>

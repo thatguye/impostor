@@ -110,7 +110,7 @@ export const HowToPlayModal: React.FC<HowToPlayModalProps> = ({
                   <div className="space-y-1">
                     <h3 className="text-sm font-bold text-[#F4F4F8]">Tap Your Name & Hold to Peek</h3>
                     <p className="text-sm text-[#9898B0] leading-relaxed">
-                      Pass the phone in any order. Tap your name on screen, then press and hold the card to privately see your role. Civilians see the Category & Secret Word; Impostors see an alert (plus a subtle Hint if enabled).
+                      Tap your name on screen, then press and hold the card to privately see your role. Civilians see the Category, Secret Word, and a quick definition; Impostors see an alert (plus a subtle Hint if enabled).
                     </p>
                   </div>
                 </li>
@@ -134,7 +134,7 @@ export const HowToPlayModal: React.FC<HowToPlayModalProps> = ({
                   <div className="space-y-1">
                     <h3 className="text-sm font-bold text-[#F4F4F8]">Debate & Vote Out the Impostor</h3>
                     <p className="text-sm text-[#9898B0] leading-relaxed">
-                      Discuss suspicious clues before the timer runs out, then vote to eliminate a suspect. <strong className="text-[#F4F4F8]">Once all Impostors are voted out, Civilians win immediately</strong>—no last-chance guessing!
+                      Discuss suspicious clues before the timer runs out, then vote to eliminate a suspect. <strong className="text-[#F4F4F8]">Once all Impostors are voted out, Civilians win immediately.</strong>
                     </p>
                   </div>
                 </li>
@@ -154,7 +154,7 @@ export const HowToPlayModal: React.FC<HowToPlayModalProps> = ({
                   <div className="space-y-1">
                     <h3 className="text-sm font-bold text-[#F4F4F8]">Tap Your Name & Reveal Question</h3>
                     <p className="text-sm text-[#9898B0] leading-relaxed">
-                      Pass the phone in any order. Tap your name on screen, then click the card to flip it open and secretly read your prompt.
+                      Tap your name on screen, then click the card to flip it open and secretly read your prompt.
                     </p>
                   </div>
                 </li>

@@ -504,7 +504,7 @@ export const CustomDeckModal: React.FC<CustomDeckModalProps> = ({
             onClick={handleSave}
             className="min-h-[48px] flex-1 rounded-2xl bg-cyan-400 font-display text-sm font-bold text-[#061318] hover:bg-cyan-300 active:scale-[0.99] transition-all cursor-pointer"
           >
-            {editingDeck ? 'Save Changes' : 'Save Custom Deck'}
+            {editingDeck ? 'Save Deck' : 'Save Custom Deck'}
           </button>
         </div>
       </div>

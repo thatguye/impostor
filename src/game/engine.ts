@@ -167,6 +167,7 @@ export function createRound(
         isImpostor,
         eliminated: false,
         secretWord: isImpostor ? null : picked.wordEntry!.word,
+        wordDescription: isImpostor ? null : (picked.wordEntry!.description ?? null),
         hintWord,
         promptQuestion: null,
         fellowImpostorNames,
@@ -177,6 +178,7 @@ export function createRound(
         isImpostor,
         eliminated: false,
         secretWord: null,
+        wordDescription: null,
         hintWord: null,
         promptQuestion: isImpostor
           ? picked.questionPair!.decoy
@@ -207,6 +209,7 @@ export function createRound(
     categoryEmoji: picked.deck.emoji,
     promptId: picked.promptId,
     secretWord: picked.wordEntry ? picked.wordEntry.word : null,
+    secretWordDescription: picked.wordEntry?.description ?? null,
     allHints: hintsList,
     mainQuestion: picked.questionPair ? picked.questionPair.main : null,
     decoyQuestion: picked.questionPair ? picked.questionPair.decoy : null,
@@ -478,4 +481,31 @@ export function parseBulkImportQuestions(
   });
 
   return { entries, errors };
+}
+
+/**
+ * Extracts a single visible grapheme (one emoji, letter, or symbol) from user input,
+ * preserving compound/ZWJ emojis like 👨‍🚀 or ❤️‍🔥 while trimming whitespace.
+ */
+export function extractSingleIcon(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return '';
+
+  const SegmenterCtor = (
+    Intl as unknown as {
+      Segmenter?: new (
+        locales?: string,
+        options?: { granularity: 'grapheme' }
+      ) => { segment: (input: string) => Iterable<{ segment: string }> };
+    }
+  ).Segmenter;
+
+  if (SegmenterCtor) {
+    const segmenter = new SegmenterCtor(undefined, { granularity: 'grapheme' });
+    for (const part of segmenter.segment(trimmed)) {
+      return part.segment;
+    }
+  }
+
+  return Array.from(trimmed)[0] ?? '';
 }

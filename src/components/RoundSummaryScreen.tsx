@@ -113,11 +113,16 @@ export const RoundSummaryScreen: React.FC<RoundSummaryScreenProps> = ({
 
         {round.mode === 'word' ? (
           <div className="space-y-3">
-            <div className="rounded-2xl bg-[#09090E] border border-cyan-400/25 p-4 text-center">
+            <div className="rounded-2xl bg-[#09090E] border border-cyan-400/25 p-4 text-center space-y-1.5">
               <p className="text-xs font-semibold text-cyan-400">Secret Word</p>
-              <p className="mt-1 font-display text-2xl sm:text-3xl font-extrabold text-white">
+              <p className="font-display text-2xl sm:text-3xl font-extrabold text-white">
                 {round.secretWord}
               </p>
+              {round.secretWordDescription && (
+                <p className="text-xs text-[#B8B8CE] max-w-md mx-auto leading-relaxed">
+                  {round.secretWordDescription}
+                </p>
+              )}
             </div>
             {round.allHints.length > 0 && (
               <p className="text-center text-xs text-[#9898B0]">

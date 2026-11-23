@@ -1,9 +1,13 @@
 import { QuestionPair, WordEntry } from '../../types/game';
 
-export function w(cat: string, items: Array<[string, string, string]>): WordEntry[] {
-  return items.map(([word, h1, h2], i) => ({
+export function w(
+  cat: string,
+  items: Array<[string, string, string, string]>
+): WordEntry[] {
+  return items.map(([word, description, h1, h2], i) => ({
     id: `${cat}-w-${i + 1}`,
     word,
+    description,
     hints: [h1, h2],
   }));
 }
