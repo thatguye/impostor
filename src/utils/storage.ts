@@ -139,19 +139,47 @@ export function saveMuted(muted: boolean): void {
   writeJSON(KEYS.MUTED, muted);
 }
 
+export interface CareerStats {
+  roundsPlayed: number;
+  wins: number;
+  points: number;
+}
+
+const CAREER_STATS_KEY = 'impostor_career_stats_v1';
+
+export function loadCareerStats(): CareerStats {
+  const loaded = readJSON<Partial<CareerStats>>(CAREER_STATS_KEY, {});
+  return {
+    roundsPlayed: typeof loaded.roundsPlayed === 'number' && loaded.roundsPlayed >= 0 ? loaded.roundsPlayed : 0,
+    wins: typeof loaded.wins === 'number' && loaded.wins >= 0 ? loaded.wins : 0,
+    points: typeof loaded.points === 'number' && loaded.points >= 0 ? loaded.points : 0,
+  };
+}
+
+export function saveCareerStats(stats: CareerStats): void {
+  writeJSON(CAREER_STATS_KEY, stats);
+}
+
 export function loadOnlineSession(): OnlineSessionIdentity | null {
-  const loaded = readJSON<OnlineSessionIdentity | null>(KEYS.ONLINE_SESSION, null);
-  if (
-    loaded &&
-    typeof loaded.roomCode === 'string' &&
-    loaded.roomCode.trim().length >= 4 &&
-    typeof loaded.playerId === 'string' &&
-    loaded.playerId.trim().length > 0
-  ) {
-    return {
-      roomCode: loaded.roomCode.trim().toUpperCase(),
-      playerId: loaded.playerId.trim(),
-    };
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.sessionStorage.getItem(KEYS.ONLINE_SESSION);
+    if (!raw) return null;
+    const loaded = JSON.parse(raw) as OnlineSessionIdentity | null;
+    if (
+      loaded &&
+      typeof loaded.roomCode === 'string' &&
+      loaded.roomCode.trim().length >= 4 &&
+      typeof loaded.playerId === 'string' &&
+      loaded.playerId.trim().length > 0
+    ) {
+      return {
+        roomCode: loaded.roomCode.trim().toUpperCase(),
+        playerId: loaded.playerId.trim(),
+      };
+    }
+  } catch {
+    return null;
   }
   return null;
 }
@@ -160,9 +188,9 @@ export function saveOnlineSession(session: OnlineSessionIdentity | null): void {
   if (typeof window === 'undefined') return;
   try {
     if (!session) {
-      window.localStorage.removeItem(KEYS.ONLINE_SESSION);
+      window.sessionStorage.removeItem(KEYS.ONLINE_SESSION);
     } else {
-      window.localStorage.setItem(KEYS.ONLINE_SESSION, JSON.stringify(session));
+      window.sessionStorage.setItem(KEYS.ONLINE_SESSION, JSON.stringify(session));
     }
   } catch {
     // Ignore storage quota errors gracefully

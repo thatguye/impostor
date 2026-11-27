@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Clock,
   Eye,
   MessageSquare,
   MessageSquareQuote,
@@ -11,10 +10,12 @@ import {
   Vote,
 } from 'lucide-react';
 import { DiscussionTimerSeconds, Player, RoundState } from '../types/game';
+import { FloatingGameHud } from './FloatingGameHud';
 import {
   playTapSound,
   playTimerExpiredSound,
   playTimerTickSound,
+  triggerHaptic,
 } from '../utils/audio';
 
 interface DiscussionScreenProps {
@@ -23,13 +24,6 @@ interface DiscussionScreenProps {
   initialTimerSeconds: DiscussionTimerSeconds;
   onStartVoting: () => void;
   onRevealAllRoles: () => void;
-}
-
-function formatClock(totalSec: number): string {
-  const clamped = Math.max(0, totalSec);
-  const mins = Math.floor(clamped / 60);
-  const secs = clamped % 60;
-  return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 }
 
 export const DiscussionScreen: React.FC<DiscussionScreenProps> = ({
@@ -64,6 +58,7 @@ export const DiscussionScreen: React.FC<DiscussionScreenProps> = ({
         const next = prev - 1;
         if (next === 0) {
           playTimerExpiredSound();
+          triggerHaptic([30, 50, 30]);
         } else if (next <= 5) {
           playTimerTickSound(true);
         } else if (next <= 10) {
@@ -76,54 +71,106 @@ export const DiscussionScreen: React.FC<DiscussionScreenProps> = ({
     return () => window.clearInterval(timer);
   }, [timerEnabled, isPaused, secondsLeft]);
 
-  const isLowTime = timerEnabled && secondsLeft > 0 && secondsLeft <= 15;
   const isTimeUp = timerEnabled && secondsLeft === 0;
+  const impostorLabel = round.hideImpostorCount
+    ? 'Chaos Mystery Impostors'
+    : `${round.impostorCount} ${round.impostorCount === 1 ? 'Impostor' : 'Impostors'}`;
 
   return (
-    <main className="mx-auto flex min-h-[calc(100dvh-56px)] w-full max-w-2xl flex-col justify-between px-5 py-4 pb-safe gap-4">
-      <div className="space-y-3.5">
-        {/* Round Metadata Header */}
-        <div className="text-center space-y-1">
-          <div className="flex flex-wrap items-center justify-center gap-2 text-xs font-medium text-[#9898B0]">
-            <span>Round {round.roundNumber}</span>
-            <span aria-hidden="true">·</span>
-            <span>
-              {round.categoryEmoji} {round.categoryName}
-            </span>
-            <span aria-hidden="true">·</span>
-            <span className={round.hideImpostorCount ? 'text-rose-300 font-semibold' : ''}>
-              {round.hideImpostorCount
-                ? 'Chaos Mystery Impostors'
-                : `${round.impostorCount} ${round.impostorCount === 1 ? 'Impostor' : 'Impostors'}`}
-            </span>
-          </div>
-          <h1 className="font-display text-2xl sm:text-3xl font-extrabold text-[#F4F4F8] tracking-tight">
-            {round.mode === 'question' ? 'Answers Revealed' : 'Discuss & Find the Liar'}
-          </h1>
-        </div>
+    <main className="mx-auto flex min-h-[calc(100dvh-60px)] w-full max-w-2xl flex-col justify-between px-4 sm:px-6 py-3 pb-safe gap-4">
+      <div className="space-y-4">
+        {/* Floating Top Status Pill HUD */}
+        <FloatingGameHud
+          phaseLabel={round.mode === 'question' ? 'Answers' : 'Clues'}
+          roundNumber={round.roundNumber}
+          mode={round.mode}
+          categoryEmoji={round.categoryEmoji}
+          categoryName={round.categoryName}
+          impostorLabel={impostorLabel}
+          isChaosHidden={round.hideImpostorCount}
+          timerEnabled={timerEnabled}
+          secondsLeft={secondsLeft}
+          isPaused={isPaused}
+          speakerName={
+            round.mode === 'word' && round.eliminatedOrder.length === 0
+              ? startingPlayer?.name ?? null
+              : null
+          }
+          speakerEmoji={
+            round.mode === 'word' && round.eliminatedOrder.length === 0
+              ? startingPlayer?.emoji ?? null
+              : null
+          }
+        />
 
-        {/* Starting Speaker Callout (Word Mode only) */}
+        {/* Compact Timer Controls Strip (when timer is enabled) */}
+        {timerEnabled && (
+          <div className="flex items-center justify-between gap-2 rounded-2xl bg-[#13131E] border border-white/[0.08] px-3.5 py-2.5">
+            <span className="text-xs font-semibold text-[#9898B0]">
+              {isTimeUp ? 'Time is up — Ready to vote!' : isPaused ? 'Timer paused' : 'Live round timer'}
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={isTimeUp}
+                onClick={() => {
+                  playTapSound();
+                  setIsPaused((p) => !p);
+                }}
+                className="flex min-h-[38px] items-center justify-center gap-1.5 rounded-xl bg-white/[0.08] px-3.5 text-xs font-bold text-[#F4F4F8] hover:bg-white/[0.14] disabled:opacity-40 transition-colors cursor-pointer"
+              >
+                {isPaused ? (
+                  <>
+                    <Play className="h-3.5 w-3.5 fill-current" aria-hidden="true" />
+                    <span>Resume</span>
+                  </>
+                ) : (
+                  <>
+                    <Pause className="h-3.5 w-3.5 fill-current" aria-hidden="true" />
+                    <span>Pause</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  playTapSound();
+                  setSecondsLeft((prev) => prev + 30);
+                }}
+                className="flex min-h-[38px] items-center justify-center gap-1 rounded-xl bg-cyan-400/12 border border-cyan-400/25 px-3 font-mono text-xs font-bold text-cyan-300 hover:bg-cyan-400/20 transition-colors cursor-pointer"
+              >
+                <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+                <span>30s</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Word Mode Starting Speaker Card */}
         {round.mode === 'word' && startingPlayer && round.eliminatedOrder.length === 0 && (
-          <div className="flex items-center justify-between gap-4 rounded-2xl bg-[#14141F] border border-white/[0.08] px-4 py-3">
+          <section className="flex items-center justify-between gap-4 rounded-[24px] bg-[#13131E] border border-white/[0.08] px-4 py-3.5">
             <div className="flex items-center gap-3 min-w-0">
               <div
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-xl"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-2xl"
                 style={{
                   backgroundColor: `${startingPlayer.color}22`,
-                  border: `1px solid ${startingPlayer.color}66`,
+                  border: `1.5px solid ${startingPlayer.color}66`,
                 }}
               >
                 {startingPlayer.emoji}
               </div>
               <div className="min-w-0">
-                <p className="text-[11px] font-semibold text-cyan-400">Starts the round</p>
-                <p className="font-display text-base font-bold text-[#F4F4F8] truncate">
-                  {startingPlayer.name} speaks first
+                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-cyan-400">
+                  Speaking Order
+                </p>
+                <p className="font-display text-base font-extrabold text-[#F4F4F8] truncate">
+                  {startingPlayer.name} goes first
                 </p>
               </div>
             </div>
             <MessageSquare className="h-4 w-4 text-[#75758E] shrink-0" aria-hidden="true" />
-          </div>
+          </section>
         )}
 
         {/* Question Mode: Main Question + Everyone's Revealed Answers */}
@@ -131,15 +178,15 @@ export const DiscussionScreen: React.FC<DiscussionScreenProps> = ({
           <>
             <section
               aria-label="The Real Question"
-              className="rounded-3xl bg-[#14141F] border border-cyan-400/30 p-5 text-center space-y-2"
+              className="rounded-[26px] bg-[#13131E] border border-cyan-400/35 p-5 text-center space-y-2"
             >
-              <p className="text-xs font-bold tracking-wide text-cyan-400">
+              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-cyan-400">
                 The Real Question
               </p>
               <p className="font-display text-xl sm:text-2xl font-extrabold text-white leading-snug">
                 “{round.mainQuestion}”
               </p>
-              <p className="text-xs text-[#9898B0]">
+              <p className="text-xs text-[#8D8DA8]">
                 Whose answer looks weirdly off? Debate and expose the Impostor!
               </p>
             </section>
@@ -147,7 +194,7 @@ export const DiscussionScreen: React.FC<DiscussionScreenProps> = ({
             <section
               aria-label="Everyone's Answers"
               data-testid="revealed-answers-list"
-              className="rounded-3xl bg-[#14141F] border border-white/[0.08] p-4 space-y-2.5"
+              className="rounded-[26px] bg-[#13131E] border border-white/[0.08] p-4 space-y-2.5"
             >
               <div className="flex items-center justify-between text-xs text-[#9898B0] px-1">
                 <span className="flex items-center gap-1.5 font-semibold text-[#D6D6E6]">
@@ -217,79 +264,9 @@ export const DiscussionScreen: React.FC<DiscussionScreenProps> = ({
           </>
         )}
 
-        {/* Discussion Timer Card */}
-        {timerEnabled && (
-          <section
-            aria-label="Discussion Timer"
-            className={`rounded-3xl border px-5 py-4 text-center space-y-3 transition-colors ${
-              isTimeUp
-                ? 'bg-rose-500/15 border-rose-500/50'
-                : isLowTime
-                ? 'bg-[#1F1219] border-rose-500/40'
-                : 'bg-[#14141F] border-white/[0.08]'
-            }`}
-          >
-            <div className="flex items-center justify-center gap-2 text-xs font-semibold text-[#9898B0]">
-              <Clock className="h-4 w-4 text-cyan-400" aria-hidden="true" />
-              <span>
-                {isTimeUp
-                  ? 'Time is up — Ready to vote!'
-                  : isPaused
-                  ? 'Timer Paused'
-                  : 'Discussion Timer'}
-              </span>
-            </div>
-
-            <div
-              data-testid="discussion-timer-display"
-              className={`font-mono text-4xl sm:text-5xl font-bold tracking-tight tabular-nums ${
-                isTimeUp || isLowTime ? 'text-rose-400' : 'text-[#F4F4F8]'
-              }`}
-            >
-              {formatClock(secondsLeft)}
-            </div>
-
-            <div className="flex items-center justify-center gap-3">
-              <button
-                type="button"
-                disabled={isTimeUp}
-                onClick={() => {
-                  playTapSound();
-                  setIsPaused((p) => !p);
-                }}
-                className="flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-white/[0.08] px-5 text-xs font-bold text-[#F4F4F8] hover:bg-white/[0.14] disabled:opacity-40 transition-colors cursor-pointer"
-              >
-                {isPaused ? (
-                  <>
-                    <Play className="h-3.5 w-3.5 fill-current" aria-hidden="true" />
-                    <span>Resume</span>
-                  </>
-                ) : (
-                  <>
-                    <Pause className="h-3.5 w-3.5 fill-current" aria-hidden="true" />
-                    <span>Pause</span>
-                  </>
-                )}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  playTapSound();
-                  setSecondsLeft((prev) => prev + 30);
-                }}
-                className="flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl bg-white/[0.08] px-4 font-mono text-xs font-bold text-cyan-300 hover:bg-cyan-400/15 transition-colors cursor-pointer"
-              >
-                <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-                <span>30s</span>
-              </button>
-            </div>
-          </section>
-        )}
-
-        {/* Active Roster Strip (Word Mode only — Question Mode shows everyone in Everyone's Answers) */}
+        {/* Word Mode Active Roster */}
         {round.mode === 'word' && (
-          <section className="rounded-2xl bg-[#14141F] border border-white/[0.08] px-4 py-3 space-y-2">
+          <section className="rounded-[24px] bg-[#13131E] border border-white/[0.08] p-4 space-y-3">
             <div className="flex items-center justify-between text-xs text-[#9898B0]">
               <span className="flex items-center gap-1.5 font-semibold text-[#D6D6E6]">
                 <Users className="h-3.5 w-3.5 text-cyan-400" aria-hidden="true" />
@@ -302,11 +279,11 @@ export const DiscussionScreen: React.FC<DiscussionScreenProps> = ({
               )}
             </div>
 
-            <div className="flex flex-wrap gap-1.5">
+            <div className="flex flex-wrap gap-2">
               {activePlayers.map((p) => (
                 <div
                   key={p.id}
-                  className="flex items-center gap-1.5 rounded-lg bg-[#09090E] border border-white/[0.07] px-2.5 py-1 text-xs font-semibold text-[#F4F4F8]"
+                  className="flex items-center gap-2 rounded-xl bg-[#09090E] border border-white/[0.08] px-3 py-1.5 text-xs font-bold text-[#F4F4F8]"
                 >
                   <span aria-hidden="true">{p.emoji}</span>
                   <span>{p.name}</span>
@@ -315,7 +292,7 @@ export const DiscussionScreen: React.FC<DiscussionScreenProps> = ({
               {eliminatedPlayers.map((p) => (
                 <div
                   key={p.id}
-                  className="flex items-center gap-1.5 rounded-lg bg-white/[0.02] border border-white/[0.04] px-2.5 py-1 text-xs font-medium text-[#666680] line-through"
+                  className="flex items-center gap-2 rounded-xl bg-white/[0.02] border border-white/[0.04] px-3 py-1.5 text-xs font-medium text-[#666680] line-through"
                 >
                   <span aria-hidden="true">{p.emoji}</span>
                   <span>{p.name}</span>
@@ -332,9 +309,10 @@ export const DiscussionScreen: React.FC<DiscussionScreenProps> = ({
           type="button"
           onClick={() => {
             playTapSound();
+            triggerHaptic(14);
             onStartVoting();
           }}
-          className="flex w-full min-h-[56px] items-center justify-center gap-2.5 rounded-2xl bg-cyan-400 font-display text-base font-extrabold text-[#061318] shadow-lg shadow-cyan-500/20 hover:bg-cyan-300 active:scale-[0.99] transition-all cursor-pointer"
+          className="flex w-full min-h-[56px] items-center justify-center gap-2.5 rounded-2xl bg-cyan-400 font-display text-base font-extrabold text-[#061318] shadow-[0_12px_34px_rgba(34,211,238,0.24)] hover:bg-cyan-300 active:scale-[0.98] transition-all cursor-pointer"
         >
           <Vote className="h-5 w-5" aria-hidden="true" />
           <span>Start Voting</span>

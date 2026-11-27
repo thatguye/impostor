@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AnimatePresence } from 'motion/react';
 import {
   CategoryDeck,
   GamePhase,
@@ -41,6 +42,8 @@ import {
   updateRoomLobbyConfig,
 } from './game/online';
 import {
+  CareerStats,
+  loadCareerStats,
   loadCustomDecks,
   loadMuted,
   loadOnlineProfile,
@@ -51,6 +54,7 @@ import {
   loadSelectedDeckIds,
   loadSettings,
   loadUsedHistory,
+  saveCareerStats,
   saveCustomDecks,
   saveMuted,
   saveOnlineProfile,
@@ -77,13 +81,14 @@ import {
   setAudioMuted,
   unlockIOSAudio,
 } from './utils/audio';
+import { SplashScreen } from './components/SplashScreen';
 import { HeaderBar } from './components/HeaderBar';
-import { SetupHub } from './components/SetupHub';
+import { HomeHub, HomeTab } from './components/HomeHub';
+import { JoinRoomModal } from './components/JoinRoomModal';
 import { HowToPlayModal } from './components/HowToPlayModal';
 import { ScoreboardModal } from './components/ScoreboardModal';
 import { ChangelogModal } from './components/ChangelogModal';
 import { CustomDeckModal } from './components/CustomDeckModal';
-import { SupabaseConfigModal } from './components/SupabaseConfigModal';
 import { PrivacyPassScreen } from './components/PrivacyPassScreen';
 import { DiscussionScreen } from './components/DiscussionScreen';
 import { VotingScreen } from './components/VotingScreen';
@@ -97,7 +102,21 @@ function createClientPlayerId(): string {
   return `op-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
+function shouldShowInitialSplash(): boolean {
+  if (typeof window === 'undefined') return false;
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('autostart') === '1') return false;
+  if (normalizeRoomCode(params.get('room') ?? '').length === 4) return false;
+  if (loadOnlineSession()) return false;
+  return true;
+}
+
 export default function App() {
+  const [showSplash, setShowSplash] = useState<boolean>(() => shouldShowInitialSplash());
+  const [activeHomeTab, setActiveHomeTab] = useState<HomeTab>('play');
+  const [isPassLobby, setIsPassLobby] = useState<boolean>(false);
+  const [showPassSettingsSheet, setShowPassSettingsSheet] = useState<boolean>(false);
+
   const [players, setPlayers] = useState<Player[]>(() => loadPlayers());
   const [groups, setGroups] = useState<PlayerGroup[]>(() => loadPlayerGroups());
   const [settings, setSettings] = useState<GameSettings>(() => loadSettings());
@@ -107,6 +126,7 @@ export default function App() {
   );
   const [usedHistory, setUsedHistory] = useState<UsedHistory>(() => loadUsedHistory());
   const [scores, setScores] = useState<Record<string, number>>(() => loadScores());
+  const [careerStats, setCareerStats] = useState<CareerStats>(() => loadCareerStats());
   const [isMuted, setIsMuted] = useState<boolean>(() => {
     const m = loadMuted();
     setAudioMuted(m);
@@ -121,9 +141,8 @@ export default function App() {
   const [noticeBanner, setNoticeBanner] = useState<string | null>(null);
 
   // Online Multiplayer State
-  const [playStyle, setPlayStyle] = useState<'pass_and_play' | 'online'>('pass_and_play');
-  const [onlineActionTab, setOnlineActionTab] = useState<'host' | 'join'>('host');
   const [onlineProfile, setOnlineProfile] = useState<OnlineProfile>(() => loadOnlineProfile());
+  const [showJoinModal, setShowJoinModal] = useState<boolean>(false);
   const [joinCodeDraft, setJoinCodeDraft] = useState('');
   const [onlineError, setOnlineError] = useState<string | null>(null);
   const [onlineLoading, setOnlineLoading] = useState(false);
@@ -133,8 +152,6 @@ export default function App() {
     loadOnlineSession()
   );
   const [onlineRoom, setOnlineRoom] = useState<OnlineRoomState | null>(null);
-  const [showSupabaseConfig, setShowSupabaseConfig] = useState(false);
-  const [supabaseConfigTick, setSupabaseConfigTick] = useState(0);
   const [reconnectTick, setReconnectTick] = useState(0);
 
   // Modals
@@ -149,16 +166,12 @@ export default function App() {
   const realtimeStatusRef = useRef(realtimeStatus);
   realtimeStatusRef.current = realtimeStatus;
   const prevOnlinePhaseRef = useRef<string | null>(null);
-
-  const supabaseInfo = useMemo(() => {
-    void supabaseConfigTick;
-    return resolveSupabaseCredentials();
-  }, [supabaseConfigTick]);
+  const recordedOnlineRoundRef = useRef<string | null>(null);
 
   // Auto-initialize Supabase client out of the box with built-in/env credentials
   useEffect(() => {
     getSupabaseClient();
-  }, [supabaseConfigTick]);
+  }, []);
 
   // Unlock iOS silent-switch audio on first user interaction
   useEffect(() => {
@@ -181,6 +194,7 @@ export default function App() {
   useEffect(() => saveSelectedDeckIds(selectedDeckIds), [selectedDeckIds]);
   useEffect(() => saveUsedHistory(usedHistory), [usedHistory]);
   useEffect(() => saveScores(scores), [scores]);
+  useEffect(() => saveCareerStats(careerStats), [careerStats]);
   useEffect(() => saveOnlineProfile(onlineProfile), [onlineProfile]);
 
   // Lock page scrolling during Word/Question card reveals (offline & online)
@@ -202,10 +216,7 @@ export default function App() {
     };
   }, [isPassLocked]);
 
-  const allDecks = useMemo(
-    () => [...customDecks, ...BUILT_IN_CATEGORIES],
-    [customDecks]
-  );
+  const allDecks = useMemo(() => [...customDecks, ...BUILT_IN_CATEGORIES], [customDecks]);
 
   const selectedDecksForMode = useMemo(() => {
     const selectedSet = new Set(selectedDeckIds);
@@ -218,9 +229,7 @@ export default function App() {
   const canStartError = useMemo(() => {
     if (players.length < 3) return 'Add at least 3 players to start.';
     if (selectedDecksForMode.length === 0) {
-      return `Select at least one deck with ${
-        settings.mode === 'word' ? 'words' : 'questions'
-      }.`;
+      return `Select at least one deck with ${settings.mode === 'word' ? 'words' : 'questions'}.`;
     }
     return null;
   }, [players.length, selectedDecksForMode.length, settings.mode]);
@@ -232,7 +241,7 @@ export default function App() {
     }, 3200);
   }, []);
 
-  // Auto-rejoin saved online session OR prefill ?room=XXXX invite link
+  // Auto-rejoin saved sessionStorage online seat OR open Join modal prefilled from ?room=XXXX
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const params = new URLSearchParams(window.location.search);
@@ -240,9 +249,8 @@ export default function App() {
     const saved = loadOnlineSession();
 
     if (roomParam.length === 4 && (!saved || saved.roomCode !== roomParam)) {
-      setPlayStyle('online');
-      setOnlineActionTab('join');
       setJoinCodeDraft(roomParam);
+      setShowJoinModal(true);
       if (saved) {
         saveOnlineSession(null);
         setOnlineSession(null);
@@ -252,13 +260,9 @@ export default function App() {
 
     if (!saved) return;
     const { creds } = resolveSupabaseCredentials();
-    if (!creds) {
-      setPlayStyle('online');
-      return;
-    }
+    if (!creds) return;
 
     let cancelled = false;
-    setPlayStyle('online');
     setOnlineLoading(true);
 
     fetchRoomRow(saved.roomCode)
@@ -284,14 +288,10 @@ export default function App() {
             .then((refreshed) => {
               if (!cancelled && refreshed) setOnlineRoom(refreshed);
             })
-            .catch(() => {
-              // Ignore background heartbeat failure
-            });
+            .catch(() => {});
         }
       })
-      .catch(() => {
-        // Keep session saved so user can retry sync
-      })
+      .catch(() => {})
       .finally(() => {
         if (!cancelled) setOnlineLoading(false);
       });
@@ -299,7 +299,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [supabaseConfigTick]);
+  }, []);
 
   // Force state sync whenever returning from Discord/FaceTime, unlocking phone, or regaining network
   const forceSyncOnlineRoom = useCallback(async () => {
@@ -323,7 +323,7 @@ export default function App() {
         setReconnectTick((t) => t + 1);
       }
     } catch {
-      // Ignore transient offline sync error; next visibilitychange/sync will recover
+      // Next visibilitychange/sync will recover
     } finally {
       setIsSyncingOnline(false);
     }
@@ -354,7 +354,7 @@ export default function App() {
     return () => {
       unsubscribe();
     };
-  }, [onlineSession?.roomCode, !!onlineRoom, supabaseConfigTick, reconnectTick]);
+  }, [onlineSession?.roomCode, !!onlineRoom, reconnectTick]);
 
   // Listen for visibilitychange / focus / online events for mobile call resilience
   useEffect(() => {
@@ -383,7 +383,7 @@ export default function App() {
     };
   }, [onlineSession, !!onlineRoom, forceSyncOnlineRoom]);
 
-  // Subtle sound cues when online phase transitions into reveals/summaries
+  // Sound cues + personal career stats tracking when online rounds conclude
   useEffect(() => {
     if (!onlineRoom) {
       prevOnlinePhaseRef.current = null;
@@ -392,18 +392,42 @@ export default function App() {
     const prev = prevOnlinePhaseRef.current;
     const curr = onlineRoom.phase;
     prevOnlinePhaseRef.current = curr;
-    if (!prev || prev === curr) return;
 
-    if (curr === 'vote_results' && onlineRoom.voteOutcome?.eliminatedPlayerId && onlineRoom.round) {
-      const wasImpostor =
-        !!onlineRoom.round.assignments[onlineRoom.voteOutcome.eliminatedPlayerId]?.isImpostor;
-      playDramaticRevealSound(wasImpostor);
-    } else if (curr === 'round_summary' && onlineRoom.round) {
-      if (onlineRoom.round.winner === 'civilians' || onlineRoom.round.winner === 'impostors') {
-        playVictoryFanfare(onlineRoom.round.winner === 'civilians');
+    if (prev && prev !== curr) {
+      if (
+        curr === 'vote_results' &&
+        onlineRoom.voteOutcome?.eliminatedPlayerId &&
+        onlineRoom.round
+      ) {
+        const wasImpostor =
+          !!onlineRoom.round.assignments[onlineRoom.voteOutcome.eliminatedPlayerId]?.isImpostor;
+        playDramaticRevealSound(wasImpostor);
+      } else if (curr === 'round_summary' && onlineRoom.round) {
+        if (onlineRoom.round.winner === 'civilians' || onlineRoom.round.winner === 'impostors') {
+          playVictoryFanfare(onlineRoom.round.winner === 'civilians');
+        }
       }
     }
-  }, [onlineRoom]);
+
+    if (
+      curr === 'round_summary' &&
+      onlineRoom.round &&
+      onlineSession &&
+      recordedOnlineRoundRef.current !== onlineRoom.round.id
+    ) {
+      recordedOnlineRoundRef.current = onlineRoom.round.id;
+      const myDelta = onlineRoom.roundScoreDeltas[onlineSession.playerId] ?? 0;
+      const myAssignment = onlineRoom.round.assignments[onlineSession.playerId];
+      const won =
+        (onlineRoom.round.winner === 'civilians' && myAssignment && !myAssignment.isImpostor) ||
+        (onlineRoom.round.winner === 'impostors' && myAssignment?.isImpostor);
+      setCareerStats((prevStats) => ({
+        roundsPlayed: prevStats.roundsPlayed + 1,
+        wins: prevStats.wins + (won ? 1 : 0),
+        points: prevStats.points + myDelta,
+      }));
+    }
+  }, [onlineRoom, onlineSession]);
 
   const applyOnlineMutation = useCallback(
     async (mutator: (current: OnlineRoomState) => OnlineRoomState) => {
@@ -618,7 +642,7 @@ export default function App() {
 
     const code = normalizeRoomCode(joinCodeDraft);
     if (code.length < 4) {
-      setOnlineError('Enter a 4-letter room code.');
+      setOnlineError('Enter a 4-character room code.');
       return;
     }
 
@@ -663,6 +687,12 @@ export default function App() {
       saveOnlineSession(session);
       setOnlineSession(session);
       setOnlineRoom(updated);
+      setShowJoinModal(false);
+      setJoinCodeDraft('');
+      // Clean ?room=XXXX from URL bar cleanly without reload
+      if (window.location.search.includes('room=')) {
+        window.history.replaceState({}, '', window.location.pathname);
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unable to join room.';
       setOnlineError(msg);
@@ -692,6 +722,12 @@ export default function App() {
 
   const applyRoundScores = useCallback(
     (finishedRound: RoundState) => {
+      setCareerStats((prev) => ({
+        roundsPlayed: prev.roundsPlayed + 1,
+        wins: prev.wins + (finishedRound.winner === 'civilians' ? 1 : 0),
+        points: prev.points + (finishedRound.winner ? 1 : 0),
+      }));
+
       if (!settings.scoreboardEnabled) {
         setRoundScoreDeltas({});
         return;
@@ -730,6 +766,7 @@ export default function App() {
     setRoundCount(nextRoundNumber);
     setUsedHistory(created.updatedHistory);
     setRoundScoreDeltas({});
+    setIsPassLobby(true);
     setPhase('privacy_pass');
 
     if (created.deckHistoryReset) {
@@ -801,8 +838,14 @@ export default function App() {
       } bg-[#09090E] text-[#F4F4F8] flex flex-col`}
       data-game-phase={onlineRoom ? `online:${onlineRoom.phase}` : phase}
     >
+      {/* Animated Tactical Launch Splash */}
+      <AnimatePresence>
+        {showSplash && <SplashScreen onComplete={() => setShowSplash(false)} />}
+      </AnimatePresence>
+
       <HeaderBar
         phase={phase}
+        isPassLobby={isPassLobby}
         isOnlineRoom={!!onlineRoom}
         isMuted={isMuted}
         scoreboardEnabled={activeScoreboardEnabled}
@@ -810,18 +853,20 @@ export default function App() {
         onToggleMute={handleToggleMute}
         onOpenScoreboard={() => setShowScoreboard(true)}
         onOpenChangelog={() => setShowChangelog(true)}
+        onOpenPassSettings={() => setShowPassSettingsSheet(true)}
+        onExitPassLobby={() => setIsPassLobby(false)}
         onReturnToLobby={() => {
           setPhase('lobby');
           setRound(null);
         }}
       />
 
-      {/* Subtle transient notice banner */}
+      {/* Subtle transient toast banner */}
       {noticeBanner && (
         <div
           role="status"
           aria-live="polite"
-          className="fixed bottom-5 left-1/2 z-40 -translate-x-1/2 rounded-2xl bg-[#1C1C2B] border border-cyan-400/35 px-4 py-2.5 text-xs font-semibold text-cyan-200 shadow-xl whitespace-nowrap"
+          className="fixed bottom-20 left-1/2 z-40 -translate-x-1/2 rounded-2xl bg-[#1A1A28] border border-cyan-400/35 px-4 py-2.5 text-xs font-semibold text-cyan-200 shadow-2xl whitespace-nowrap"
         >
           {noticeBanner}
         </div>
@@ -835,6 +880,8 @@ export default function App() {
           allDecks={allDecks}
           isSyncing={isSyncingOnline}
           realtimeStatus={realtimeStatus}
+          isMuted={isMuted}
+          onToggleMute={handleToggleMute}
           onForceSync={() => void forceSyncOnlineRoom()}
           onLeaveRoom={() => void handleLeaveOnlineRoom()}
           onUpdateLobbyConfig={(patch) =>
@@ -872,9 +919,7 @@ export default function App() {
           onTimerAction={(action) =>
             void applyOnlineMutation((curr) => updateOnlineTimer(curr, action))
           }
-          onStartVoting={() =>
-            void applyOnlineMutation((curr) => startOnlineVoting(curr))
-          }
+          onStartVoting={() => void applyOnlineMutation((curr) => startOnlineVoting(curr))}
           onBackToDiscussion={() =>
             void applyOnlineMutation((curr) => backToOnlineDiscussion(curr))
           }
@@ -883,57 +928,45 @@ export default function App() {
               castOnlineVote(curr, onlineSession.playerId, targetId)
             )
           }
-          onForceRevealVotes={() =>
-            void applyOnlineMutation((curr) => resolveOnlineVotes(curr))
-          }
+          onForceRevealVotes={() => void applyOnlineMutation((curr) => resolveOnlineVotes(curr))}
           onAdvanceAfterVote={() =>
             void applyOnlineMutation((curr) => advanceAfterVoteResults(curr))
           }
-          onRevealAllRoles={() =>
-            void applyOnlineMutation((curr) => revealAllRolesOnline(curr))
-          }
+          onRevealAllRoles={() => void applyOnlineMutation((curr) => revealAllRolesOnline(curr))}
           onResetScores={handleResetScores}
-          onReturnToLobby={() =>
-            void applyOnlineMutation((curr) => returnRoomToLobby(curr))
-          }
+          onReturnToLobby={() => void applyOnlineMutation((curr) => returnRoomToLobby(curr))}
         />
       ) : (
         <>
           {phase === 'lobby' && (
-            <SetupHub
+            <HomeHub
+              activeTab={activeHomeTab}
+              isPassLobby={isPassLobby}
               players={players}
               groups={groups}
               decks={allDecks}
               selectedDeckIds={selectedDeckIds}
               settings={settings}
               usedHistory={usedHistory}
+              scores={scores}
+              careerStats={careerStats}
               canStartError={canStartError}
-              playStyle={playStyle}
-              onlineActionTab={onlineActionTab}
               onlineProfile={onlineProfile}
-              joinCodeDraft={joinCodeDraft}
-              onlineError={onlineError}
               onlineLoading={onlineLoading}
-              supabaseSource={supabaseInfo.source}
-              onChangePlayStyle={(style) => {
+              onlineError={onlineError}
+              showPassSettingsSheet={showPassSettingsSheet}
+              onChangeTab={setActiveHomeTab}
+              onEnterPassLobby={() => setIsPassLobby(true)}
+              onSetShowPassSettingsSheet={setShowPassSettingsSheet}
+              onOpenJoinModal={() => {
                 setOnlineError(null);
-                setPlayStyle(style);
+                setShowJoinModal(true);
               }}
-              onChangeOnlineActionTab={(tab) => {
-                setOnlineError(null);
-                setOnlineActionTab(tab);
-              }}
+              onHostOnlineRoom={() => void handleHostOnlineRoom()}
               onChangeOnlineProfile={(profile) => {
                 setOnlineError(null);
                 setOnlineProfile(profile);
               }}
-              onChangeJoinCodeDraft={(code) => {
-                setOnlineError(null);
-                setJoinCodeDraft(code);
-              }}
-              onHostOnlineRoom={() => void handleHostOnlineRoom()}
-              onJoinOnlineRoom={() => void handleJoinOnlineRoom()}
-              onOpenSupabaseConfig={() => setShowSupabaseConfig(true)}
               onChangePlayers={setPlayers}
               onSaveGroup={handleSaveGroup}
               onLoadGroup={handleLoadGroup}
@@ -951,8 +984,10 @@ export default function App() {
                 setShowCustomDeckModal(true);
               }}
               onUpdateSettings={handleUpdateSettings}
-              onStartGame={startNewRound}
+              onResetScores={handleResetScores}
+              onStartPassGame={startNewRound}
               onOpenHowToPlay={() => setShowHowToPlay(true)}
+              onOpenChangelog={() => setShowChangelog(true)}
             />
           )}
 
@@ -1002,13 +1037,36 @@ export default function App() {
               onBackToLobby={() => {
                 setPhase('lobby');
                 setRound(null);
+                setIsPassLobby(true);
               }}
             />
           )}
         </>
       )}
 
-      {/* Modals */}
+      {/* Upper-Middle Join with a Code Dialog */}
+      <JoinRoomModal
+        isOpen={showJoinModal}
+        code={joinCodeDraft}
+        playerName={onlineProfile.name}
+        loading={onlineLoading}
+        error={onlineError}
+        onChangeCode={(next) => {
+          setOnlineError(null);
+          setJoinCodeDraft(next);
+        }}
+        onChangePlayerName={(nextName) => {
+          setOnlineError(null);
+          setOnlineProfile((prev) => ({ ...prev, name: nextName }));
+        }}
+        onSubmit={() => void handleJoinOnlineRoom()}
+        onClose={() => {
+          setShowJoinModal(false);
+          setOnlineError(null);
+        }}
+      />
+
+      {/* Slide-Up Modals */}
       <HowToPlayModal
         isOpen={showHowToPlay}
         initialMode={onlineRoom ? onlineRoom.settings.mode : settings.mode}
@@ -1023,10 +1081,7 @@ export default function App() {
         onClose={() => setShowScoreboard(false)}
       />
 
-      <ChangelogModal
-        isOpen={showChangelog}
-        onClose={() => setShowChangelog(false)}
-      />
+      <ChangelogModal isOpen={showChangelog} onClose={() => setShowChangelog(false)} />
 
       <CustomDeckModal
         isOpen={showCustomDeckModal}
@@ -1037,16 +1092,6 @@ export default function App() {
         onClose={() => {
           setShowCustomDeckModal(false);
           setEditingDeck(null);
-        }}
-      />
-
-      <SupabaseConfigModal
-        isOpen={showSupabaseConfig}
-        onClose={() => setShowSupabaseConfig(false)}
-        onSaved={() => {
-          setSupabaseConfigTick((t) => t + 1);
-          setOnlineError(null);
-          showNotice('Supabase connection updated!');
         }}
       />
     </div>

@@ -6,7 +6,20 @@ export interface ChangelogEntry {
   items: string[];
 }
 
+export const APP_VERSION = 'v2.0';
+
 export const CHANGELOG_ENTRIES: ChangelogEntry[] = [
+  {
+    version: 'v2.0',
+    date: 'Nov 27, 2026',
+    time: '2:35 PM',
+    title: 'Visual Overhaul & QR Invites',
+    items: [
+      'Added animated launch splash and redesigned home navigation.',
+      'Added scannable QR code invites and segmented room code entry.',
+      'Added slide-up sheets, live discussion HUD, and hold-to-reveal ring.',
+    ],
+  },
   {
     version: 'v1.8',
     date: 'Nov 22, 2026',

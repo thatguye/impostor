@@ -9,8 +9,8 @@
 :root {
   color-scheme: dark;
   --bg-canvas: #09090E;
-  --bg-surface: #14141F;
-  --bg-surface-elevated: #1C1C2B;
+  --bg-surface: #12121C;
+  --bg-surface-elevated: #1A1A28;
   --border-subtle: rgba(255, 255, 255, 0.08);
   --border-strong: rgba(255, 255, 255, 0.16);
   --accent-civilian: #22D3EE;
@@ -82,6 +82,39 @@ body.scroll-locked {
   touch-action: none;
 }
 
+/* Splash & Tactical Radar Keyframes */
+@keyframes radar-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.92);
+    opacity: 0.65;
+  }
+  70% {
+    transform: scale(1.18);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.18);
+    opacity: 0;
+  }
+}
+
+.animate-radar-spin {
+  animation: radar-spin 3.4s linear infinite;
+}
+
+.animate-pulse-ring {
+  animation: pulse-ring 1.6s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+
 /* Custom dark scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
@@ -101,5 +134,9 @@ body.scroll-locked {
 @media (prefers-reduced-motion: reduce) {
   .card-flip-inner {
     transition-duration: 0.05s;
+  }
+  .animate-radar-spin,
+  .animate-pulse-ring {
+    animation: none;
   }
 }

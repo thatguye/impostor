@@ -1,4 +1,5 @@
 import React from 'react';
+import { motion } from 'motion/react';
 import {
   Flame,
   Home,
@@ -8,7 +9,7 @@ import {
   Trophy,
 } from 'lucide-react';
 import { Player, RoundState } from '../types/game';
-import { playTapSound } from '../utils/audio';
+import { playTapSound, triggerHaptic } from '../utils/audio';
 
 interface RoundSummaryScreenProps {
   round: RoundState;
@@ -48,14 +49,17 @@ export const RoundSummaryScreen: React.FC<RoundSummaryScreenProps> = ({
     .sort((a, b) => b.total - a.total);
 
   return (
-    <main className="mx-auto w-full max-w-2xl px-5 py-6 pb-12 pb-safe space-y-5">
+    <main className="mx-auto w-full max-w-2xl px-4 sm:px-6 py-5 pb-12 pb-safe space-y-4">
       {/* Winner Banner */}
-      <section
-        className={`rounded-3xl border-2 p-6 sm:p-7 text-center space-y-3 ${
+      <motion.section
+        initial={{ opacity: 0, y: 14, scale: 0.97 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ type: 'spring', damping: 28, stiffness: 320 }}
+        className={`rounded-[28px] border-2 p-6 sm:p-7 text-center space-y-3 shadow-2xl ${
           civiliansWon
-            ? 'bg-[#0D1E26] border-cyan-400/60'
+            ? 'bg-[#0C1E26] border-cyan-400/65'
             : impostorsWon
-            ? 'bg-[#220D16] border-rose-500/60'
+            ? 'bg-[#220D16] border-rose-500/65'
             : 'bg-[#1B1726] border-amber-400/50'
         }`}
       >
@@ -89,7 +93,7 @@ export const RoundSummaryScreen: React.FC<RoundSummaryScreenProps> = ({
           }`}
         >
           {civiliansWon
-            ? 'Civilians Win!'
+            ? 'Crewmates Win!'
             : impostorsWon
             ? 'Impostors Win!'
             : 'Round Revealed'}
@@ -100,11 +104,11 @@ export const RoundSummaryScreen: React.FC<RoundSummaryScreenProps> = ({
             {round.winReason}
           </p>
         )}
-      </section>
+      </motion.section>
 
       {/* Secret Word / Questions Reveal */}
-      <section className="rounded-3xl bg-[#14141F] border border-white/[0.08] p-5 sm:p-6 space-y-4">
-        <div className="flex items-center justify-between text-xs text-[#9898B0]">
+      <section className="rounded-[26px] bg-[#13131E] border border-white/[0.08] p-5 space-y-4">
+        <div className="flex items-center justify-between text-xs text-[#8D8DA8]">
           <span>
             {round.categoryEmoji} {round.categoryName}
           </span>
@@ -114,7 +118,9 @@ export const RoundSummaryScreen: React.FC<RoundSummaryScreenProps> = ({
         {round.mode === 'word' ? (
           <div className="space-y-3">
             <div className="rounded-2xl bg-[#09090E] border border-cyan-400/25 p-4 text-center space-y-1.5">
-              <p className="text-xs font-semibold text-cyan-400">Secret Word</p>
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-cyan-400">
+                Secret Word
+              </p>
               <p className="font-display text-2xl sm:text-3xl font-extrabold text-white">
                 {round.secretWord}
               </p>
@@ -125,7 +131,7 @@ export const RoundSummaryScreen: React.FC<RoundSummaryScreenProps> = ({
               )}
             </div>
             {round.allHints.length > 0 && (
-              <p className="text-center text-xs text-[#9898B0]">
+              <p className="text-center text-xs text-[#8D8DA8]">
                 Impostor Hints:{' '}
                 <span className="font-semibold text-[#D6D6E6]">
                   {round.allHints.join(' · ')}
@@ -137,7 +143,7 @@ export const RoundSummaryScreen: React.FC<RoundSummaryScreenProps> = ({
           <div className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="rounded-2xl bg-[#09090E] border border-cyan-400/25 p-4 space-y-1.5">
-                <p className="text-xs font-bold text-cyan-400">Main Question (Civilians)</p>
+                <p className="text-xs font-bold text-cyan-400">Main Question (Crewmates)</p>
                 <p className="text-sm font-semibold text-white leading-snug">
                   “{round.mainQuestion}”
                 </p>
@@ -152,7 +158,7 @@ export const RoundSummaryScreen: React.FC<RoundSummaryScreenProps> = ({
 
             {Object.keys(round.submittedAnswers).length > 0 && (
               <div className="space-y-2 pt-1">
-                <p className="text-xs font-semibold text-[#9898B0]">Submitted Answers</p>
+                <p className="text-xs font-semibold text-[#8D8DA8]">Submitted Answers</p>
                 <ul className="space-y-1.5">
                   {round.playerOrder.map((pid) => {
                     const player = playerMap.get(pid);
@@ -178,7 +184,7 @@ export const RoundSummaryScreen: React.FC<RoundSummaryScreenProps> = ({
                               assigned.isImpostor ? 'text-rose-400' : 'text-cyan-400'
                             }`}
                           >
-                            {assigned.isImpostor ? 'Impostor' : 'Civilian'}
+                            {assigned.isImpostor ? 'Impostor' : 'Crewmate'}
                           </span>
                         </div>
                         <span className="text-xs sm:text-sm font-semibold text-white text-right break-words min-w-0">
@@ -195,7 +201,7 @@ export const RoundSummaryScreen: React.FC<RoundSummaryScreenProps> = ({
       </section>
 
       {/* Impostor(s) Reveal */}
-      <section className="rounded-3xl bg-[#14141F] border border-white/[0.08] p-5 space-y-3">
+      <section className="rounded-[26px] bg-[#13131E] border border-white/[0.08] p-5 space-y-3">
         <div className="flex items-center gap-2">
           <ShieldAlert className="h-4 w-4 text-rose-400" aria-hidden="true" />
           <h2 className="font-display text-base font-bold text-[#F4F4F8]">
@@ -210,8 +216,8 @@ export const RoundSummaryScreen: React.FC<RoundSummaryScreenProps> = ({
         </div>
 
         {impostors.length === 0 ? (
-          <p className="text-sm text-[#9898B0]">
-            Chaos Mode twist — every single player was an innocent Civilian!
+          <p className="text-sm text-[#8D8DA8]">
+            Chaos Mode twist — every single player was an innocent Crewmate!
           </p>
         ) : (
           <div className="flex flex-wrap gap-2.5">
@@ -228,9 +234,7 @@ export const RoundSummaryScreen: React.FC<RoundSummaryScreenProps> = ({
                   <div>
                     <p className="text-sm font-bold text-white">{imp.name}</p>
                     {assigned?.hintWord && (
-                      <p className="text-[11px] text-rose-200/80">
-                        Hint: {assigned.hintWord}
-                      </p>
+                      <p className="text-[11px] text-rose-200/80">Hint: {assigned.hintWord}</p>
                     )}
                   </div>
                 </div>
@@ -242,13 +246,11 @@ export const RoundSummaryScreen: React.FC<RoundSummaryScreenProps> = ({
 
       {/* Scoreboard Section */}
       {scoreboardEnabled && (
-        <section className="rounded-3xl bg-[#14141F] border border-white/[0.08] p-5 space-y-3">
+        <section className="rounded-[26px] bg-[#13131E] border border-white/[0.08] p-5 space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Trophy className="h-4 w-4 text-amber-400" aria-hidden="true" />
-              <h2 className="font-display text-base font-bold text-[#F4F4F8]">
-                Scoreboard
-              </h2>
+              <h2 className="font-display text-base font-bold text-[#F4F4F8]">Scoreboard</h2>
             </div>
             <button
               type="button"
@@ -259,7 +261,7 @@ export const RoundSummaryScreen: React.FC<RoundSummaryScreenProps> = ({
               className="flex min-h-[36px] items-center gap-1.5 rounded-xl px-2.5 text-xs font-semibold text-rose-300 hover:bg-rose-500/15 transition-colors cursor-pointer"
             >
               <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
-              <span>Reset Scores</span>
+              <span>Reset</span>
             </button>
           </div>
 
@@ -267,15 +269,15 @@ export const RoundSummaryScreen: React.FC<RoundSummaryScreenProps> = ({
             {rankedScores.map(({ player, total, delta }, index) => (
               <li key={player.id} className="flex items-center justify-between py-2.5">
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <span className="w-5 text-center font-mono text-xs text-[#9898B0] tabular-nums">
-                    {index + 1}
+                  <span className="w-6 text-center font-mono text-xs font-bold text-[#8D8DA8] tabular-nums">
+                    #{index + 1}
                   </span>
                   <span aria-hidden="true">{player.emoji}</span>
                   <span className="text-sm font-semibold text-[#F4F4F8] truncate">
                     {player.name}
                   </span>
                   <span className="text-[11px] text-[#75758E]">
-                    · {round.assignments[player.id]?.isImpostor ? 'Impostor' : 'Civilian'}
+                    · {round.assignments[player.id]?.isImpostor ? 'Impostor' : 'Crewmate'}
                   </span>
                 </div>
                 <div className="flex items-center gap-2 font-mono tabular-nums shrink-0">
@@ -296,12 +298,13 @@ export const RoundSummaryScreen: React.FC<RoundSummaryScreenProps> = ({
           type="button"
           onClick={() => {
             playTapSound();
+            triggerHaptic(14);
             onPlayAgain();
           }}
-          className="flex w-full min-h-[56px] items-center justify-center gap-2 rounded-2xl bg-cyan-400 font-display text-base font-extrabold text-[#061318] shadow-lg shadow-cyan-500/20 hover:bg-cyan-300 active:scale-[0.99] transition-all cursor-pointer"
+          className="flex w-full min-h-[56px] items-center justify-center gap-2 rounded-2xl bg-cyan-400 font-display text-base font-extrabold text-[#061318] shadow-[0_12px_34px_rgba(34,211,238,0.24)] hover:bg-cyan-300 active:scale-[0.98] transition-all cursor-pointer"
         >
           <RotateCcw className="h-5 w-5" aria-hidden="true" />
-          <span>Play Again (Same Settings)</span>
+          <span>Play Again</span>
         </button>
 
         <button
@@ -310,7 +313,7 @@ export const RoundSummaryScreen: React.FC<RoundSummaryScreenProps> = ({
             playTapSound();
             onBackToLobby();
           }}
-          className="flex w-full min-h-[48px] items-center justify-center gap-2 rounded-2xl bg-white/[0.06] border border-white/[0.08] font-display text-sm font-semibold text-[#D6D6E6] hover:bg-white/[0.12] hover:text-white transition-colors cursor-pointer"
+          className="flex w-full min-h-[48px] items-center justify-center gap-2 rounded-2xl bg-white/[0.06] border border-white/[0.08] font-display text-sm font-bold text-[#D6D6E6] hover:bg-white/[0.12] hover:text-white transition-colors cursor-pointer"
         >
           <Home className="h-4 w-4" aria-hidden="true" />
           <span>Back to Lobby</span>

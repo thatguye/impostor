@@ -209,3 +209,25 @@ export function playVictoryFanfare(civiliansWon: boolean): void {
     playTone(185.0, 0.6, 'sawtooth', 0.11, 0.44);
   }
 }
+
+/** Subtle crystalline chime on app splash when Web Audio is already unlocked */
+export function playSplashChime(): void {
+  if (mutedState) return;
+  const ctx = getAudioContext();
+  if (!ctx || ctx.state !== 'running') return;
+  playTone(392.0, 0.18, 'sine', 0.055, 0, 440);
+  playTone(587.33, 0.28, 'triangle', 0.05, 0.08, 659.25);
+}
+
+/** Tactile haptic feedback via Vibration API where supported */
+export function triggerHaptic(pattern: number | number[] = 12): void {
+  if (typeof navigator === 'undefined') return;
+  try {
+    if (typeof navigator.vibrate === 'function') {
+      navigator.vibrate(pattern);
+    }
+  } catch {
+    // Ignore unsupported or blocked haptics
+  }
+}
+

@@ -12,6 +12,10 @@ interface SettingsDrawerProps {
   settings: GameSettings;
   playerCount: number;
   onUpdateSettings: (patch: Partial<GameSettings>) => void;
+  /** When true, renders expanded settings body directly (ideal inside a BottomSheet or House Rules card) */
+  embedded?: boolean;
+  /** Optional initial expansion state when not embedded */
+  defaultExpanded?: boolean;
 }
 
 const TIMER_OPTIONS: Array<{ value: DiscussionTimerSeconds; label: string }> = [
@@ -26,8 +30,10 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
   settings,
   playerCount,
   onUpdateSettings,
+  embedded = false,
+  defaultExpanded = false,
 }) => {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(defaultExpanded);
 
   const maxStandardImpostors = Math.max(1, playerCount - 1);
   const balancedCount = calculateBalancedImpostorCount(playerCount);
@@ -41,7 +47,9 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
   } else {
     summaryParts.push('Chaos');
   }
-  summaryParts.push(settings.discussionTimer === 0 ? 'No Timer' : `${settings.discussionTimer / 60}m Timer`);
+  summaryParts.push(
+    settings.discussionTimer === 0 ? 'No Timer' : `${settings.discussionTimer / 60}m Timer`
+  );
   if (settings.survivalMode) summaryParts.push('Survival');
 
   const ToggleRow: React.FC<{
@@ -57,7 +65,7 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
         <label htmlFor={id} className="block text-sm font-semibold text-[#F4F4F8] cursor-pointer">
           {label}
         </label>
-        <p className="text-xs text-[#9898B0] leading-snug mt-0.5">{description}</p>
+        <p className="text-xs text-[#8D8DA8] leading-snug mt-0.5">{description}</p>
       </div>
       <button
         id={id}
@@ -82,10 +90,192 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
     </div>
   );
 
+  const settingsBody = (
+    <div className="space-y-5">
+      {/* Impostor Count Mode */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#8D8DA8]">
+            Impostor Setup
+          </span>
+          <span className="text-xs text-[#9898B0] font-mono tabular-nums">
+            {settings.impostorCountMode === 'balanced' && `Auto: ${balancedCount}`}
+            {settings.impostorCountMode === 'chaos' && `0 to ${playerCount}`}
+            {settings.impostorCountMode === 'standard' &&
+              `${Math.min(maxStandardImpostors, settings.impostorCount)} selected`}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-3 gap-1.5 rounded-2xl bg-[#09090E] p-1 border border-white/[0.06]">
+          {(
+            [
+              { id: 'standard', label: 'Standard' },
+              { id: 'balanced', label: 'Balanced' },
+              { id: 'chaos', label: 'Chaos' },
+            ] as Array<{ id: ImpostorCountMode; label: string }>
+          ).map((opt) => (
+            <button
+              key={opt.id}
+              type="button"
+              onClick={() => {
+                playTapSound();
+                onUpdateSettings({ impostorCountMode: opt.id });
+              }}
+              aria-pressed={settings.impostorCountMode === opt.id}
+              className={`min-h-[42px] rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+                settings.impostorCountMode === opt.id
+                  ? opt.id === 'chaos'
+                    ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                    : 'bg-[#1C1C2B] text-cyan-300 border border-cyan-400/30'
+                  : 'text-[#9898B0] hover:text-[#F4F4F8]'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+
+        {settings.impostorCountMode === 'standard' && (
+          <div className="flex items-center justify-between rounded-2xl bg-[#09090E] border border-white/[0.06] px-4 py-2.5">
+            <span className="text-sm font-medium text-[#D6D6E6]">Exact Impostors</span>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                disabled={settings.impostorCount <= 1}
+                onClick={() => {
+                  playTapSound();
+                  onUpdateSettings({
+                    impostorCount: Math.max(1, settings.impostorCount - 1),
+                  });
+                }}
+                aria-label="Decrease impostor count"
+                className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/[0.08] text-white hover:bg-white/[0.15] disabled:opacity-30 cursor-pointer"
+              >
+                <Minus className="h-4 w-4" aria-hidden="true" />
+              </button>
+              <span className="w-6 text-center font-mono text-base font-bold text-rose-400 tabular-nums">
+                {Math.min(maxStandardImpostors, settings.impostorCount)}
+              </span>
+              <button
+                type="button"
+                disabled={settings.impostorCount >= maxStandardImpostors}
+                onClick={() => {
+                  playTapSound();
+                  onUpdateSettings({
+                    impostorCount: Math.min(maxStandardImpostors, settings.impostorCount + 1),
+                  });
+                }}
+                aria-label="Increase impostor count"
+                className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/[0.08] text-white hover:bg-white/[0.15] disabled:opacity-30 cursor-pointer"
+              >
+                <Plus className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {settings.impostorCountMode === 'balanced' && (
+          <p className="text-xs text-[#8D8DA8]">
+            Automatically assigns <strong className="text-cyan-300">{balancedCount}</strong>{' '}
+            {balancedCount === 1 ? 'Impostor' : 'Impostors'} for {playerCount} players.
+          </p>
+        )}
+
+        {settings.impostorCountMode === 'chaos' && (
+          <div className="rounded-2xl bg-rose-500/[0.07] border border-rose-500/20 px-4 py-1">
+            <ToggleRow
+              id="toggle-hide-chaos"
+              label="Hide Impostor Count"
+              description="Mystery count—could be 0 Impostors, several, or everyone!"
+              checked={settings.hideImpostorCountInChaos}
+              onChange={(v) => onUpdateSettings({ hideImpostorCountInChaos: v })}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Discussion Timer */}
+      <div className="space-y-2">
+        <span className="block text-[11px] font-bold uppercase tracking-[0.14em] text-[#8D8DA8]">
+          Discussion Timer
+        </span>
+        <div className="grid grid-cols-5 gap-1.5 rounded-2xl bg-[#09090E] p-1 border border-white/[0.06]">
+          {TIMER_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => {
+                playTapSound();
+                onUpdateSettings({ discussionTimer: opt.value });
+              }}
+              aria-pressed={settings.discussionTimer === opt.value}
+              className={`min-h-[42px] rounded-xl font-mono text-xs font-bold transition-all cursor-pointer ${
+                settings.discussionTimer === opt.value
+                  ? 'bg-[#1C1C2B] text-cyan-300 border border-cyan-400/30'
+                  : 'text-[#9898B0] hover:text-white'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Gameplay Toggles */}
+      <div className="divide-y divide-white/[0.06] border-t border-white/[0.06]">
+        {settings.mode === 'word' && (
+          <ToggleRow
+            id="toggle-impostor-hints"
+            label="Impostor Hints"
+            description="Gives each Impostor a subtle contextual clue word."
+            checked={settings.impostorHints}
+            onChange={(v) => onUpdateSettings({ impostorHints: v })}
+          />
+        )}
+
+        <ToggleRow
+          id="toggle-impostor-team"
+          label="Impostor Team Mode"
+          description="When 2+ Impostors play, reveal teammates on their role card."
+          checked={settings.impostorTeamMode}
+          onChange={(v) => onUpdateSettings({ impostorTeamMode: v })}
+        />
+
+        <ToggleRow
+          id="toggle-prevent-first"
+          label="Prevent Impostor Going First"
+          description="Always picks a Crewmate as the starting speaker."
+          checked={settings.preventImpostorFirst}
+          onChange={(v) => onUpdateSettings({ preventImpostorFirst: v })}
+        />
+
+        <ToggleRow
+          id="toggle-survival-mode"
+          label="Survival Mode"
+          description="Keep debating if an innocent Crewmate is voted out until Impostors are caught or outnumber Crewmates."
+          checked={settings.survivalMode}
+          onChange={(v) => onUpdateSettings({ survivalMode: v })}
+        />
+
+        <ToggleRow
+          id="toggle-scoreboard"
+          label="Track Scoreboard"
+          description="Keep running points across rounds with one-tap reset."
+          checked={settings.scoreboardEnabled}
+          onChange={(v) => onUpdateSettings({ scoreboardEnabled: v })}
+        />
+      </div>
+    </div>
+  );
+
+  if (embedded) {
+    return settingsBody;
+  }
+
   return (
     <section
       aria-labelledby="settings-heading"
-      className="rounded-3xl bg-[#14141F] border border-white/[0.08] overflow-hidden"
+      className="rounded-3xl bg-[#13131E] border border-white/[0.08] overflow-hidden"
     >
       <button
         type="button"
@@ -100,13 +290,11 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
           <div className="flex items-center gap-2.5">
             <SlidersHorizontal className="h-4 w-4 text-cyan-400 shrink-0" aria-hidden="true" />
             <h2 id="settings-heading" className="font-display text-base font-bold text-[#F4F4F8]">
-              Game Settings
+              House Rules
             </h2>
           </div>
           {!expanded && (
-            <p className="mt-0.5 text-xs text-[#9898B0] truncate">
-              {summaryParts.join(' · ')}
-            </p>
+            <p className="mt-0.5 text-xs text-[#8D8DA8] truncate">{summaryParts.join(' · ')}</p>
           )}
         </div>
         <ChevronDown
@@ -118,180 +306,7 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
       </button>
 
       {expanded && (
-        <div className="px-5 pb-5 pt-1 space-y-5 border-t border-white/[0.06]">
-          {/* Impostor Count Mode */}
-          <div className="pt-3 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-[#D6D6E6]">Impostor Setup</span>
-              <span className="text-xs text-[#9898B0] font-mono tabular-nums">
-                {settings.impostorCountMode === 'balanced' && `Auto: ${balancedCount}`}
-                {settings.impostorCountMode === 'chaos' && `0 to ${playerCount}`}
-                {settings.impostorCountMode === 'standard' &&
-                  `${Math.min(maxStandardImpostors, settings.impostorCount)} selected`}
-              </span>
-            </div>
-
-            <div className="grid grid-cols-3 gap-1.5 rounded-2xl bg-[#09090E] p-1 border border-white/[0.06]">
-              {(
-                [
-                  { id: 'standard', label: 'Standard' },
-                  { id: 'balanced', label: 'Balanced' },
-                  { id: 'chaos', label: 'Chaos' },
-                ] as Array<{ id: ImpostorCountMode; label: string }>
-              ).map((opt) => (
-                <button
-                  key={opt.id}
-                  type="button"
-                  onClick={() => {
-                    playTapSound();
-                    onUpdateSettings({ impostorCountMode: opt.id });
-                  }}
-                  aria-pressed={settings.impostorCountMode === opt.id}
-                  className={`min-h-[42px] rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
-                    settings.impostorCountMode === opt.id
-                      ? opt.id === 'chaos'
-                        ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
-                        : 'bg-[#1C1C2B] text-cyan-300 border border-cyan-400/30'
-                      : 'text-[#9898B0] hover:text-[#F4F4F8]'
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-
-            {settings.impostorCountMode === 'standard' && (
-              <div className="flex items-center justify-between rounded-2xl bg-[#09090E] border border-white/[0.06] px-4 py-2.5">
-                <span className="text-sm font-medium text-[#D6D6E6]">Exact Impostors</span>
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    disabled={settings.impostorCount <= 1}
-                    onClick={() => {
-                      playTapSound();
-                      onUpdateSettings({
-                        impostorCount: Math.max(1, settings.impostorCount - 1),
-                      });
-                    }}
-                    aria-label="Decrease impostor count"
-                    className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/[0.08] text-white hover:bg-white/[0.15] disabled:opacity-30 cursor-pointer"
-                  >
-                    <Minus className="h-4 w-4" aria-hidden="true" />
-                  </button>
-                  <span className="w-6 text-center font-mono text-base font-bold text-rose-400 tabular-nums">
-                    {Math.min(maxStandardImpostors, settings.impostorCount)}
-                  </span>
-                  <button
-                    type="button"
-                    disabled={settings.impostorCount >= maxStandardImpostors}
-                    onClick={() => {
-                      playTapSound();
-                      onUpdateSettings({
-                        impostorCount: Math.min(
-                          maxStandardImpostors,
-                          settings.impostorCount + 1
-                        ),
-                      });
-                    }}
-                    aria-label="Increase impostor count"
-                    className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/[0.08] text-white hover:bg-white/[0.15] disabled:opacity-30 cursor-pointer"
-                  >
-                    <Plus className="h-4 w-4" aria-hidden="true" />
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {settings.impostorCountMode === 'balanced' && (
-              <p className="text-xs text-[#9898B0]">
-                Automatically assigns <strong className="text-cyan-300">{balancedCount}</strong>{' '}
-                {balancedCount === 1 ? 'Impostor' : 'Impostors'} for {playerCount} players.
-              </p>
-            )}
-
-            {settings.impostorCountMode === 'chaos' && (
-              <div className="rounded-2xl bg-rose-500/[0.07] border border-rose-500/20 px-4 py-1">
-                <ToggleRow
-                  id="toggle-hide-chaos"
-                  label="Hide Impostor Count"
-                  description="Mystery count—could be 0 Impostors, several, or everyone!"
-                  checked={settings.hideImpostorCountInChaos}
-                  onChange={(v) => onUpdateSettings({ hideImpostorCountInChaos: v })}
-                />
-              </div>
-            )}
-          </div>
-
-          {/* Discussion Timer */}
-          <div className="space-y-2">
-            <span className="block text-xs font-bold text-[#D6D6E6]">Discussion Timer</span>
-            <div className="grid grid-cols-5 gap-1.5 rounded-2xl bg-[#09090E] p-1 border border-white/[0.06]">
-              {TIMER_OPTIONS.map((opt) => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => {
-                    playTapSound();
-                    onUpdateSettings({ discussionTimer: opt.value });
-                  }}
-                  aria-pressed={settings.discussionTimer === opt.value}
-                  className={`min-h-[42px] rounded-xl font-mono text-xs font-bold transition-all cursor-pointer ${
-                    settings.discussionTimer === opt.value
-                      ? 'bg-[#1C1C2B] text-cyan-300 border border-cyan-400/30'
-                      : 'text-[#9898B0] hover:text-white'
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Gameplay Toggles */}
-          <div className="divide-y divide-white/[0.06] border-t border-white/[0.06]">
-            {settings.mode === 'word' && (
-              <ToggleRow
-                id="toggle-impostor-hints"
-                label="Impostor Hints"
-                description="Gives each Impostor a subtle contextual clue word."
-                checked={settings.impostorHints}
-                onChange={(v) => onUpdateSettings({ impostorHints: v })}
-              />
-            )}
-
-            <ToggleRow
-              id="toggle-impostor-team"
-              label="Impostor Team Mode"
-              description="When 2+ Impostors play, reveal teammates on their role card."
-              checked={settings.impostorTeamMode}
-              onChange={(v) => onUpdateSettings({ impostorTeamMode: v })}
-            />
-
-            <ToggleRow
-              id="toggle-prevent-first"
-              label="Prevent Impostor Going First"
-              description="Always picks a Civilian as the starting speaker."
-              checked={settings.preventImpostorFirst}
-              onChange={(v) => onUpdateSettings({ preventImpostorFirst: v })}
-            />
-
-            <ToggleRow
-              id="toggle-survival-mode"
-              label="Survival Mode"
-              description="Keep debating if an innocent Civilian is voted out until Impostors are caught or outnumber Civilians."
-              checked={settings.survivalMode}
-              onChange={(v) => onUpdateSettings({ survivalMode: v })}
-            />
-
-            <ToggleRow
-              id="toggle-scoreboard"
-              label="Track Scoreboard"
-              description="Keep running points across rounds with one-tap reset."
-              checked={settings.scoreboardEnabled}
-              onChange={(v) => onUpdateSettings({ scoreboardEnabled: v })}
-            />
-          </div>
-        </div>
+        <div className="px-5 pb-5 pt-3 border-t border-white/[0.06]">{settingsBody}</div>
       )}
     </section>
   );

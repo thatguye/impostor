@@ -1,17 +1,17 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import {
   ArrowLeft,
   Check,
   Eye,
   EyeOff,
-  Fingerprint,
+  Lock,
   MessageSquareText,
   Send,
-  ShieldAlert,
-  Users,
 } from 'lucide-react';
 import { Player, RoundState } from '../types/game';
-import { playCardFlipSound, playTapSound } from '../utils/audio';
+import { HoldToRevealCard } from './HoldToRevealCard';
+import { playCardFlipSound, playTapSound, triggerHaptic } from '../utils/audio';
 
 interface PrivacyPassScreenProps {
   round: RoundState;
@@ -28,13 +28,11 @@ export const PrivacyPassScreen: React.FC<PrivacyPassScreenProps> = ({
 }) => {
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [completedIds, setCompletedIds] = useState<string[]>([]);
+  const [passCurtainFromName, setPassCurtainFromName] = useState<string | null>(null);
 
-  // Word Mode state (press-and-hold)
+  // Word Mode card status synced from HoldToRevealCard
   const [isHolding, setIsHolding] = useState(false);
   const [hasPeeked, setHasPeeked] = useState(false);
-  const holdingRef = useRef(false);
-  const activePointerIdRef = useRef<number | null>(null);
-  const holdButtonRef = useRef<HTMLButtonElement | null>(null);
 
   // Question Mode state (tap-to-reveal + typed private answer)
   const [isQuestionOpen, setIsQuestionOpen] = useState(false);
@@ -57,12 +55,11 @@ export const PrivacyPassScreen: React.FC<PrivacyPassScreenProps> = ({
   const currentPlayer = selectedPlayerId ? playerMap.get(selectedPlayerId) : undefined;
   const assignment = selectedPlayerId ? round.assignments[selectedPlayerId] : undefined;
 
-  // Reset all state if a brand-new round starts
+  // Reset all state on new round
   useEffect(() => {
     setSelectedPlayerId(null);
     setCompletedIds([]);
-    holdingRef.current = false;
-    activePointerIdRef.current = null;
+    setPassCurtainFromName(null);
     setIsHolding(false);
     setHasPeeked(false);
     setIsQuestionOpen(false);
@@ -70,10 +67,8 @@ export const PrivacyPassScreen: React.FC<PrivacyPassScreenProps> = ({
     setAnswerDraft('');
   }, [round.id]);
 
-  // Reset per-player card state whenever switching selected player
+  // Reset per-player card state when switching player
   useEffect(() => {
-    holdingRef.current = false;
-    activePointerIdRef.current = null;
     setIsHolding(false);
     setHasPeeked(false);
     setIsQuestionOpen(false);
@@ -81,7 +76,7 @@ export const PrivacyPassScreen: React.FC<PrivacyPassScreenProps> = ({
     setAnswerDraft('');
   }, [selectedPlayerId]);
 
-  // Auto-focus answer input shortly after flipping open in Question Mode
+  // Auto-focus answer input in Question Mode
   useEffect(() => {
     if (!isQuestionMode || !isQuestionOpen) return;
     const timer = window.setTimeout(() => {
@@ -90,11 +85,10 @@ export const PrivacyPassScreen: React.FC<PrivacyPassScreenProps> = ({
     return () => window.clearTimeout(timer);
   }, [isQuestionMode, isQuestionOpen]);
 
-  // Prevent iOS Safari rubber-band touch scrolling while viewing a player's card
+  // Prevent iOS Safari rubber-band touch scrolling while viewing a card
   useEffect(() => {
     if (!selectedPlayerId) return;
     const preventTouchScroll = (e: TouchEvent) => {
-      // Allow typing/selecting inside the Question Mode text input
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
         return;
       }
@@ -106,52 +100,8 @@ export const PrivacyPassScreen: React.FC<PrivacyPassScreenProps> = ({
     };
   }, [selectedPlayerId]);
 
-  // Safety release for Word Mode hold if pointer goes up anywhere on window
-  useEffect(() => {
-    if (isQuestionMode) return;
-    const handleGlobalRelease = (e?: PointerEvent) => {
-      if (
-        e &&
-        activePointerIdRef.current !== null &&
-        e.pointerId !== activePointerIdRef.current
-      ) {
-        return;
-      }
-      if (holdingRef.current) {
-        holdingRef.current = false;
-        activePointerIdRef.current = null;
-        setIsHolding(false);
-        playCardFlipSound(false);
-      }
-    };
-    const handleBlur = () => handleGlobalRelease();
-    window.addEventListener('pointerup', handleGlobalRelease);
-    window.addEventListener('pointercancel', handleGlobalRelease);
-    window.addEventListener('blur', handleBlur);
-    return () => {
-      window.removeEventListener('pointerup', handleGlobalRelease);
-      window.removeEventListener('pointercancel', handleGlobalRelease);
-      window.removeEventListener('blur', handleBlur);
-    };
-  }, [isQuestionMode]);
-
-  const startHold = () => {
-    if (holdingRef.current) return;
-    holdingRef.current = true;
-    setIsHolding(true);
-    setHasPeeked(true);
-    playCardFlipSound(true);
-  };
-
-  const endHold = () => {
-    if (!holdingRef.current) return;
-    holdingRef.current = false;
-    activePointerIdRef.current = null;
-    setIsHolding(false);
-    playCardFlipSound(false);
-  };
-
   const finishCurrentPlayer = (playerId: string) => {
+    const finishedName = playerMap.get(playerId)?.name ?? 'Player';
     const nextCompleted = completedSet.has(playerId)
       ? completedIds
       : [...completedIds, playerId];
@@ -160,18 +110,23 @@ export const PrivacyPassScreen: React.FC<PrivacyPassScreenProps> = ({
 
     if (nextCompleted.length >= totalCount) {
       onCompletePassLoop();
+    } else {
+      // Show smooth privacy curtain while passing the phone to the next player
+      setPassCurtainFromName(finishedName);
     }
   };
 
   const handleWordDone = () => {
     if (!selectedPlayerId) return;
     playTapSound();
+    triggerHaptic(12);
     finishCurrentPlayer(selectedPlayerId);
   };
 
   const handleOpenQuestionCard = () => {
     setIsQuestionOpen(true);
     setHasOpenedQuestion(true);
+    triggerHaptic(14);
     playCardFlipSound(true);
   };
 
@@ -185,6 +140,7 @@ export const PrivacyPassScreen: React.FC<PrivacyPassScreenProps> = ({
     if (!selectedPlayerId) return;
     const trimmed = answerDraft.trim();
     if (!trimmed) return;
+    triggerHaptic(14);
     playCardFlipSound(false);
     onSubmitAnswer(selectedPlayerId, trimmed);
     setIsQuestionOpen(false);
@@ -192,13 +148,14 @@ export const PrivacyPassScreen: React.FC<PrivacyPassScreenProps> = ({
     finishCurrentPlayer(selectedPlayerId);
   };
 
-  const showImpostorAlert = round.mode === 'word' && !!assignment?.isImpostor;
+  const nextRemainingPlayers = roundPlayers.filter((p) => !completedSet.has(p.id));
+  const nextSuggestedPlayer = nextRemainingPlayers[0];
   const canSubmitAnswer = answerDraft.trim().length > 0;
   const canBackOutSafely = isQuestionMode ? !hasOpenedQuestion : !hasPeeked;
 
   return (
     <main
-      className={`mx-auto flex flex-1 min-h-0 w-full max-w-lg flex-col items-center justify-between overflow-hidden overscroll-none px-5 py-4 pb-safe ${
+      className={`relative mx-auto flex flex-1 min-h-0 w-full max-w-lg flex-col items-center justify-between overflow-hidden overscroll-none px-5 py-4 pb-safe ${
         selectedPlayerId ? 'touch-none' : ''
       }`}
     >
@@ -234,7 +191,7 @@ export const PrivacyPassScreen: React.FC<PrivacyPassScreenProps> = ({
       {/* Center Stage */}
       <div className="my-3 flex w-full flex-1 min-h-0 flex-col items-center justify-center overflow-hidden">
         {!selectedPlayerId || !currentPlayer || !assignment ? (
-          /* PLAYER PICKER GRID: Tap Whoever You Are */
+          /* PLAYER PICKER GRID */
           <section
             aria-label="Select Your Name"
             className="flex w-full max-h-full flex-col space-y-4 overflow-hidden"
@@ -243,7 +200,7 @@ export const PrivacyPassScreen: React.FC<PrivacyPassScreenProps> = ({
               <h1 className="font-display text-2xl sm:text-3xl font-extrabold text-[#F4F4F8] tracking-tight">
                 Tap Your Name
               </h1>
-              <p className="text-sm text-[#9898B0]">
+              <p className="text-sm text-[#8D8DA8]">
                 {isQuestionMode
                   ? 'Pick yourself to reveal your secret question and type your answer.'
                   : 'Pick yourself to privately view your secret role card.'}
@@ -267,12 +224,13 @@ export const PrivacyPassScreen: React.FC<PrivacyPassScreenProps> = ({
                     aria-label={isDone ? `${player.name} (Done)` : `Select ${player.name}`}
                     onClick={() => {
                       playTapSound();
+                      triggerHaptic(10);
                       setSelectedPlayerId(player.id);
                     }}
                     className={`relative flex flex-col items-center justify-center gap-2 rounded-3xl border p-4 text-center transition-all min-h-[110px] ${
                       isDone
                         ? 'bg-[#10161D] border-emerald-400/25 opacity-60 cursor-default'
-                        : 'bg-[#14141F] border-white/[0.1] hover:border-cyan-400/50 hover:bg-[#1A1A29] active:scale-[0.97] shadow-lg cursor-pointer'
+                        : 'bg-[#13131E] border-white/[0.1] hover:border-cyan-400/50 hover:bg-[#191928] active:scale-[0.97] shadow-lg cursor-pointer'
                     }`}
                   >
                     {isDone && (
@@ -336,7 +294,7 @@ export const PrivacyPassScreen: React.FC<PrivacyPassScreenProps> = ({
                   isQuestionOpen ? 'rotate-y-180' : ''
                 }`}
               >
-                {/* FRONT FACE (Hidden / Tap to Flip) */}
+                {/* FRONT */}
                 <div
                   aria-hidden={isQuestionOpen}
                   className={`backface-hidden absolute inset-0 ${
@@ -348,7 +306,7 @@ export const PrivacyPassScreen: React.FC<PrivacyPassScreenProps> = ({
                     data-testid="tap-reveal-card"
                     tabIndex={isQuestionOpen ? -1 : 0}
                     onClick={handleOpenQuestionCard}
-                    className="flex h-full w-full flex-col items-center justify-center rounded-3xl bg-[#14141F] border-2 border-white/[0.1] p-7 text-center shadow-2xl hover:border-cyan-400/40 active:scale-[0.99] transition-all cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
+                    className="flex h-full w-full flex-col items-center justify-center rounded-[28px] bg-[#13131E] border-2 border-white/[0.1] p-7 text-center shadow-2xl hover:border-cyan-400/40 active:scale-[0.99] transition-all cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400"
                   >
                     <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-white/[0.05] border border-white/[0.1] text-cyan-400 mb-5">
                       <MessageSquareText className="h-10 w-10" aria-hidden="true" />
@@ -370,14 +328,13 @@ export const PrivacyPassScreen: React.FC<PrivacyPassScreenProps> = ({
                   </button>
                 </div>
 
-                {/* BACK FACE (Revealed Question + Answer Form) */}
+                {/* BACK */}
                 <div
                   aria-hidden={!isQuestionOpen}
-                  className={`backface-hidden rotate-y-180 absolute inset-0 flex flex-col justify-between rounded-3xl bg-[#0E1B24] border-2 border-cyan-400/70 p-6 shadow-2xl ${
+                  className={`backface-hidden rotate-y-180 absolute inset-0 flex flex-col justify-between rounded-[28px] bg-[#0C1C26] border-2 border-cyan-400/75 p-6 shadow-2xl ${
                     !isQuestionOpen ? 'pointer-events-none' : ''
                   }`}
                 >
-                  {/* Card Top Bar */}
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5 text-xs font-bold tracking-wide text-[#9898B0] min-w-0">
                       <Eye className="h-4 w-4 text-cyan-400 shrink-0" aria-hidden="true" />
@@ -397,9 +354,8 @@ export const PrivacyPassScreen: React.FC<PrivacyPassScreenProps> = ({
                     </button>
                   </div>
 
-                  {/* Secret Prompt */}
                   <div className="my-auto space-y-2.5 text-center py-2">
-                    <p className="text-xs font-bold tracking-wide text-cyan-300">
+                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-cyan-300">
                       Your Secret Question
                     </p>
                     <h2
@@ -410,7 +366,6 @@ export const PrivacyPassScreen: React.FC<PrivacyPassScreenProps> = ({
                     </h2>
                   </div>
 
-                  {/* Answer Form */}
                   <form onSubmit={handleQuestionSubmit} className="space-y-3">
                     <div>
                       <label htmlFor="player-answer-input" className="sr-only">
@@ -436,13 +391,13 @@ export const PrivacyPassScreen: React.FC<PrivacyPassScreenProps> = ({
                       type="submit"
                       tabIndex={isQuestionOpen ? 0 : -1}
                       disabled={!canSubmitAnswer}
-                      className="flex w-full min-h-[52px] items-center justify-center gap-2 rounded-2xl bg-cyan-400 font-display text-sm sm:text-base font-extrabold text-[#061318] shadow-lg shadow-cyan-500/20 hover:bg-cyan-300 disabled:bg-white/[0.08] disabled:text-[#666680] disabled:shadow-none active:scale-[0.99] transition-all cursor-pointer disabled:cursor-not-allowed"
+                      className="flex w-full min-h-[52px] items-center justify-center gap-2 rounded-2xl bg-cyan-400 font-display text-sm sm:text-base font-extrabold text-[#061318] shadow-lg shadow-cyan-500/20 hover:bg-cyan-300 disabled:bg-white/[0.08] disabled:text-[#666680] disabled:shadow-none active:scale-[0.98] transition-all cursor-pointer disabled:cursor-not-allowed"
                     >
                       <Send className="h-4 w-4" aria-hidden="true" />
                       <span>
                         {isFinalRemainingPlayer
                           ? 'Submit & Reveal All Answers'
-                          : 'Submit & Back to Players'}
+                          : 'Submit & Pass Phone'}
                       </span>
                     </button>
                   </form>
@@ -451,7 +406,7 @@ export const PrivacyPassScreen: React.FC<PrivacyPassScreenProps> = ({
             </div>
           </div>
         ) : (
-          /* WORD MODE: 3D Press-and-Hold Secret Card */
+          /* WORD MODE: Tactile HoldToRevealCard with Animated Progress Ring & Haptics */
           <div className="w-full space-y-4 touch-none">
             <div className="text-center space-y-1">
               <p className="text-sm font-semibold text-[#F4F4F8]">
@@ -464,166 +419,14 @@ export const PrivacyPassScreen: React.FC<PrivacyPassScreenProps> = ({
               </p>
             </div>
 
-            <div className="perspective-1200 w-full touch-none">
-              <button
-                ref={holdButtonRef}
-                type="button"
-                data-testid="hold-reveal-card"
-                aria-label="Press and Hold to Reveal Role"
-                aria-pressed={isHolding}
-                onPointerDown={(e) => {
-                  e.preventDefault();
-                  activePointerIdRef.current = e.pointerId;
-                  try {
-                    e.currentTarget.setPointerCapture(e.pointerId);
-                  } catch {
-                    // Ignore capture errors on synthetic events
-                  }
-                  startHold();
-                }}
-                onPointerUp={(e) => {
-                  e.preventDefault();
-                  if (
-                    activePointerIdRef.current !== null &&
-                    e.pointerId !== activePointerIdRef.current
-                  ) {
-                    return;
-                  }
-                  try {
-                    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
-                      e.currentTarget.releasePointerCapture(e.pointerId);
-                    }
-                  } catch {
-                    // Ignore release errors on synthetic events
-                  }
-                  endHold();
-                }}
-                onPointerCancel={(e) => {
-                  if (
-                    activePointerIdRef.current !== null &&
-                    e.pointerId !== activePointerIdRef.current
-                  ) {
-                    return;
-                  }
-                  endHold();
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === ' ' || e.key === 'Enter') {
-                    e.preventDefault();
-                    startHold();
-                  }
-                }}
-                onKeyUp={(e) => {
-                  if (e.key === ' ' || e.key === 'Enter') {
-                    e.preventDefault();
-                    endHold();
-                  }
-                }}
-                onContextMenu={(e) => e.preventDefault()}
-                className="no-select-touch touch-none relative block w-full h-[min(360px,52dvh)] sm:h-[min(380px,54dvh)] text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 rounded-3xl cursor-pointer"
-              >
-                <div
-                  className={`card-flip-inner preserve-3d relative h-full w-full ${
-                    isHolding ? 'rotate-y-180' : ''
-                  }`}
-                >
-                  {/* FRONT FACE (Hidden / Face-Down) */}
-                  <div className="backface-hidden absolute inset-0 flex flex-col items-center justify-center rounded-3xl bg-[#14141F] border-2 border-white/[0.1] p-7 text-center shadow-2xl">
-                    <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-white/[0.05] border border-white/[0.1] text-cyan-400 mb-5">
-                      <Fingerprint className="h-10 w-10" aria-hidden="true" />
-                    </div>
-                    <h2 className="font-display text-2xl font-extrabold text-[#F4F4F8]">
-                      Press & Hold to Reveal
-                    </h2>
-                    <p className="mt-2 max-w-xs text-sm text-[#9898B0]">
-                      Hold your thumb down to flip. Letting go hides it instantly.
-                    </p>
-                    <div className="mt-6 flex items-center gap-2 text-xs font-semibold text-[#75758E]">
-                      <EyeOff className="h-4 w-4" aria-hidden="true" />
-                      <span>{hasPeeked ? 'Role viewed · Safe to continue' : 'Card is hidden'}</span>
-                    </div>
-                  </div>
-
-                  {/* BACK FACE (Revealed Secret Role) */}
-                  <div
-                    className={`backface-hidden rotate-y-180 absolute inset-0 flex flex-col items-center justify-between rounded-3xl border-2 p-7 text-center shadow-2xl ${
-                      showImpostorAlert
-                        ? 'bg-[#200D16] border-rose-500/70'
-                        : 'bg-[#0E1B24] border-cyan-400/70'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 text-xs font-bold tracking-wide text-[#9898B0]">
-                      <Eye
-                        className={`h-4 w-4 ${showImpostorAlert ? 'text-rose-400' : 'text-cyan-400'}`}
-                        aria-hidden="true"
-                      />
-                      <span>
-                        {round.categoryEmoji} {round.categoryName}
-                      </span>
-                    </div>
-
-                    {assignment.isImpostor ? (
-                      <div className="space-y-4 my-auto w-full">
-                        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-500/20 border border-rose-500/40 text-rose-400">
-                          <ShieldAlert className="h-7 w-7" aria-hidden="true" />
-                        </div>
-                        <h2 className="font-display text-2xl sm:text-3xl font-extrabold text-rose-400 tracking-tight">
-                          YOU ARE THE IMPOSTOR
-                        </h2>
-
-                        {assignment.hintWord && (
-                          <div className="rounded-2xl bg-black/35 border border-rose-400/30 px-4 py-3">
-                            <p className="text-xs font-semibold text-rose-200/80">Subtle Hint</p>
-                            <p className="mt-0.5 font-display text-xl font-bold text-white">
-                              {assignment.hintWord}
-                            </p>
-                          </div>
-                        )}
-
-                        {assignment.fellowImpostorNames.length > 0 && (
-                          <div className="flex items-center justify-center gap-2 text-xs font-semibold text-rose-200">
-                            <Users className="h-4 w-4 text-rose-400 shrink-0" aria-hidden="true" />
-                            <span>
-                              Partner{assignment.fellowImpostorNames.length > 1 ? 's' : ''}:{' '}
-                              <strong className="text-white">
-                                {assignment.fellowImpostorNames.join(', ')}
-                              </strong>
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="space-y-3 my-auto w-full">
-                        <p className="text-xs font-bold tracking-wide text-cyan-300">
-                          Civilian · Secret Word
-                        </p>
-                        <h2 className="font-display text-3xl sm:text-4xl font-extrabold text-white tracking-tight break-words">
-                          {assignment.secretWord}
-                        </h2>
-                        {assignment.wordDescription ? (
-                          <div
-                            data-testid="civilian-word-description"
-                            className="mx-auto max-w-xs rounded-2xl bg-black/30 border border-cyan-400/20 px-4 py-2.5"
-                          >
-                            <p className="text-xs text-cyan-50/90 leading-relaxed">
-                              {assignment.wordDescription}
-                            </p>
-                          </div>
-                        ) : (
-                          <p className="text-xs text-cyan-100/70 max-w-xs mx-auto pt-1">
-                            Give a clever clue that proves you know it without handing it to the Impostor.
-                          </p>
-                        )}
-                      </div>
-                    )}
-
-                    <p className="text-[11px] font-medium text-[#9898B0]">
-                      Release finger to flip card back down
-                    </p>
-                  </div>
-                </div>
-              </button>
-            </div>
+            <HoldToRevealCard
+              assignment={assignment}
+              categoryEmoji={round.categoryEmoji}
+              categoryName={round.categoryName}
+              testId="hold-reveal-card"
+              onHoldingChange={setIsHolding}
+              onPeeked={() => setHasPeeked(true)}
+            />
           </div>
         )}
       </div>
@@ -640,11 +443,9 @@ export const PrivacyPassScreen: React.FC<PrivacyPassScreenProps> = ({
               type="button"
               disabled={!hasPeeked || isHolding}
               onClick={handleWordDone}
-              className="w-full min-h-[54px] rounded-2xl bg-cyan-400 font-display text-base font-extrabold text-[#061318] shadow-lg shadow-cyan-500/20 hover:bg-cyan-300 disabled:bg-white/[0.08] disabled:text-[#666680] disabled:shadow-none active:scale-[0.99] transition-all cursor-pointer disabled:cursor-not-allowed"
+              className="w-full min-h-[54px] rounded-2xl bg-cyan-400 font-display text-base font-extrabold text-[#061318] shadow-lg shadow-cyan-500/20 hover:bg-cyan-300 disabled:bg-white/[0.08] disabled:text-[#666680] disabled:shadow-none active:scale-[0.98] transition-all cursor-pointer disabled:cursor-not-allowed"
             >
-              {isFinalRemainingPlayer
-                ? 'Hide & Start Discussion'
-                : 'Hide & Back to Players'}
+              {isFinalRemainingPlayer ? 'Hide & Start Discussion' : 'Hide & Pass Phone'}
             </button>
 
             {canBackOutSafely && (
@@ -679,6 +480,59 @@ export const PrivacyPassScreen: React.FC<PrivacyPassScreenProps> = ({
           </p>
         )}
       </div>
+
+      {/* Smooth Pass-to-Next-Player Privacy Curtain Overlay */}
+      <AnimatePresence>
+        {passCurtainFromName && (
+          <motion.div
+            data-testid="privacy-curtain"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-40 flex flex-col items-center justify-center bg-[#07070C]/98 backdrop-blur-xl px-6 text-center"
+          >
+            <motion.div
+              initial={{ scale: 0.94, opacity: 0, y: 12 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.96, opacity: 0 }}
+              transition={{ type: 'spring', damping: 28, stiffness: 340 }}
+              className="w-full max-w-sm rounded-[28px] bg-[#13131E] border border-white/[0.1] p-7 space-y-5 shadow-2xl"
+            >
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-cyan-400/12 border border-cyan-400/30 text-cyan-300">
+                <Lock className="h-7 w-7" aria-hidden="true" />
+              </div>
+
+              <div className="space-y-1.5">
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-400">
+                  {passCurtainFromName}’s Screen Hidden
+                </p>
+                <h2 className="font-display text-2xl font-extrabold text-white">
+                  {nextSuggestedPlayer
+                    ? `Pass to ${nextSuggestedPlayer.name}`
+                    : 'Pass the Phone'}
+                </h2>
+                <p className="text-xs text-[#8D8DA8]">
+                  Hand the phone to the next player ({remainingCount} left) before tapping below.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                data-testid="dismiss-privacy-curtain-btn"
+                onClick={() => {
+                  playTapSound();
+                  triggerHaptic(10);
+                  setPassCurtainFromName(null);
+                }}
+                className="w-full min-h-[52px] rounded-2xl bg-cyan-400 font-display text-base font-extrabold text-[#061318] hover:bg-cyan-300 active:scale-[0.98] transition-all cursor-pointer"
+              >
+                Ready — Show Players
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </main>
   );
 };
