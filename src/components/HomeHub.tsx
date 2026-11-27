@@ -187,7 +187,7 @@ export const HomeHub: React.FC<HomeHubProps> = ({
       <>
         <main
           data-testid="pass-play-lobby"
-          className="relative mx-auto w-full max-w-2xl px-4 sm:px-6 pt-4 pb-32 space-y-3.5"
+          className="relative mx-auto w-full max-w-2xl px-4 sm:px-6 pt-4 pb-36 space-y-3.5"
         >
           {/* GAME MODE CARD */}
           <section className="rounded-[24px] bg-[#13131E] border border-white/[0.08] p-4 sm:p-5 space-y-3.5">
@@ -429,7 +429,7 @@ export const HomeHub: React.FC<HomeHubProps> = ({
           isOpen={showPlayersSheet}
           onClose={() => setShowPlayersSheet(false)}
           title="Players & Crews"
-          subtitle="Tap any avatar to pick an emoji, color, or custom symbol"
+          subtitle="Tap any avatar to customize icon or color"
           icon={<Users className="h-5 w-5 text-cyan-400" aria-hidden="true" />}
           maxWidthClass="max-w-xl"
           testId="players-bottom-sheet"
@@ -453,6 +453,7 @@ export const HomeHub: React.FC<HomeHubProps> = ({
             onSaveGroup={onSaveGroup}
             onLoadGroup={onLoadGroup}
             onDeleteGroup={onDeleteGroup}
+            embedded
           />
         </BottomSheet>
 
@@ -494,6 +495,7 @@ export const HomeHub: React.FC<HomeHubProps> = ({
               setShowDecksSheet(false);
               onEditCustomDeck(deck);
             }}
+            embedded
           />
         </BottomSheet>
 
@@ -974,6 +976,22 @@ export const HomeHub: React.FC<HomeHubProps> = ({
                       {em}
                     </button>
                   ))}
+
+                  {!PLAYER_AVATAR_EMOJIS.includes(onlineProfile.emoji) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        playTapSound();
+                        setShowCustomProfileIcon(true);
+                        setCustomProfileIconDraft(onlineProfile.emoji);
+                        window.setTimeout(() => customIconInputRef.current?.focus(), 60);
+                      }}
+                      aria-label={`Current custom icon ${onlineProfile.emoji}`}
+                      className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/15 ring-1 ring-cyan-400 font-display text-lg font-bold text-[#F4F4F8] cursor-pointer"
+                    >
+                      {onlineProfile.emoji}
+                    </button>
+                  )}
 
                   <button
                     type="button"

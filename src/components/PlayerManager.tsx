@@ -23,6 +23,7 @@ interface PlayerManagerProps {
   onSaveGroup: (name: string) => void;
   onLoadGroup: (group: PlayerGroup) => void;
   onDeleteGroup: (groupId: string) => void;
+  embedded?: boolean;
 }
 
 export const PlayerManager: React.FC<PlayerManagerProps> = ({
@@ -32,6 +33,7 @@ export const PlayerManager: React.FC<PlayerManagerProps> = ({
   onSaveGroup,
   onLoadGroup,
   onDeleteGroup,
+  embedded = false,
 }) => {
   const [newName, setNewName] = useState('');
   const [editingAvatarId, setEditingAvatarId] = useState<string | null>(null);
@@ -125,20 +127,30 @@ export const PlayerManager: React.FC<PlayerManagerProps> = ({
 
   return (
     <section
-      aria-labelledby="players-heading"
-      className="rounded-3xl bg-[#14141F] border border-white/[0.08] p-5 space-y-4"
+      aria-labelledby={embedded ? undefined : 'players-heading'}
+      className={
+        embedded
+          ? 'space-y-4'
+          : 'rounded-3xl bg-[#14141F] border border-white/[0.08] p-5 space-y-4'
+      }
     >
       {/* Header Row */}
       <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <Users className="h-4 w-4 text-cyan-400 shrink-0" aria-hidden="true" />
-          <h2 id="players-heading" className="font-display text-base font-bold text-[#F4F4F8]">
-            Players
-          </h2>
-          <span className="text-xs text-[#9898B0] font-mono tabular-nums">
-            · {players.length}
+        {embedded ? (
+          <span className="text-xs font-mono text-[#9898B0] tabular-nums">
+            {players.length} players active
           </span>
-        </div>
+        ) : (
+          <div className="flex items-center gap-2.5 min-w-0">
+            <Users className="h-4 w-4 text-cyan-400 shrink-0" aria-hidden="true" />
+            <h2 id="players-heading" className="font-display text-base font-bold text-[#F4F4F8]">
+              Players
+            </h2>
+            <span className="text-xs text-[#9898B0] font-mono tabular-nums">
+              · {players.length}
+            </span>
+          </div>
+        )}
 
         <button
           type="button"
@@ -147,10 +159,10 @@ export const PlayerManager: React.FC<PlayerManagerProps> = ({
             setShowGroupsPanel((v) => !v);
           }}
           aria-expanded={showGroupsPanel}
-          className="flex min-h-[40px] items-center gap-1.5 rounded-xl bg-white/[0.05] px-3 text-xs font-semibold text-[#D6D6E6] hover:bg-white/[0.1] transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+          className="flex min-h-[40px] items-center gap-1.5 rounded-xl bg-white/[0.05] border border-white/[0.08] px-3 text-xs font-semibold text-[#D6D6E6] hover:bg-white/[0.1] transition-colors whitespace-nowrap shrink-0 cursor-pointer"
         >
           <FolderOpen className="h-3.5 w-3.5 text-cyan-400" aria-hidden="true" />
-          <span>Groups {groups.length > 0 ? `(${groups.length})` : ''}</span>
+          <span>Saved Crews {groups.length > 0 ? `(${groups.length})` : ''}</span>
         </button>
       </div>
 
@@ -264,7 +276,11 @@ export const PlayerManager: React.FC<PlayerManagerProps> = ({
       </form>
 
       {/* Player List */}
-      <ul className="divide-y divide-white/[0.06] max-h-[340px] overflow-y-auto -mx-1 px-1">
+      <ul
+        className={`divide-y divide-white/[0.06] -mx-1 px-1 ${
+          embedded ? '' : 'max-h-[340px] overflow-y-auto'
+        }`}
+      >
         {players.map((player, index) => {
           const isEditingAvatar = editingAvatarId === player.id;
           return (

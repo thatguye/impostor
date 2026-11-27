@@ -154,7 +154,7 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
               </button>
             )}
 
-            {isPassLobby && onOpenPassSettings && (
+            {isPassLobby && !inActiveGame && onOpenPassSettings && (
               <button
                 type="button"
                 onClick={() => {

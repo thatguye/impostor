@@ -1,11 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { AnimatePresence, motion } from 'motion/react';
 import {
   ArrowLeft,
   Check,
   Eye,
   EyeOff,
-  Lock,
   MessageSquareText,
   Send,
 } from 'lucide-react';
@@ -28,7 +26,6 @@ export const PrivacyPassScreen: React.FC<PrivacyPassScreenProps> = ({
 }) => {
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [completedIds, setCompletedIds] = useState<string[]>([]);
-  const [passCurtainFromName, setPassCurtainFromName] = useState<string | null>(null);
 
   // Word Mode card status synced from HoldToRevealCard
   const [isHolding, setIsHolding] = useState(false);
@@ -59,7 +56,6 @@ export const PrivacyPassScreen: React.FC<PrivacyPassScreenProps> = ({
   useEffect(() => {
     setSelectedPlayerId(null);
     setCompletedIds([]);
-    setPassCurtainFromName(null);
     setIsHolding(false);
     setHasPeeked(false);
     setIsQuestionOpen(false);
@@ -101,7 +97,6 @@ export const PrivacyPassScreen: React.FC<PrivacyPassScreenProps> = ({
   }, [selectedPlayerId]);
 
   const finishCurrentPlayer = (playerId: string) => {
-    const finishedName = playerMap.get(playerId)?.name ?? 'Player';
     const nextCompleted = completedSet.has(playerId)
       ? completedIds
       : [...completedIds, playerId];
@@ -110,9 +105,6 @@ export const PrivacyPassScreen: React.FC<PrivacyPassScreenProps> = ({
 
     if (nextCompleted.length >= totalCount) {
       onCompletePassLoop();
-    } else {
-      // Show smooth privacy curtain while passing the phone to the next player
-      setPassCurtainFromName(finishedName);
     }
   };
 
@@ -148,8 +140,6 @@ export const PrivacyPassScreen: React.FC<PrivacyPassScreenProps> = ({
     finishCurrentPlayer(selectedPlayerId);
   };
 
-  const nextRemainingPlayers = roundPlayers.filter((p) => !completedSet.has(p.id));
-  const nextSuggestedPlayer = nextRemainingPlayers[0];
   const canSubmitAnswer = answerDraft.trim().length > 0;
   const canBackOutSafely = isQuestionMode ? !hasOpenedQuestion : !hasPeeked;
 
@@ -397,7 +387,7 @@ export const PrivacyPassScreen: React.FC<PrivacyPassScreenProps> = ({
                       <span>
                         {isFinalRemainingPlayer
                           ? 'Submit & Reveal All Answers'
-                          : 'Submit & Pass Phone'}
+                          : 'Submit & Back to Players'}
                       </span>
                     </button>
                   </form>
@@ -406,7 +396,7 @@ export const PrivacyPassScreen: React.FC<PrivacyPassScreenProps> = ({
             </div>
           </div>
         ) : (
-          /* WORD MODE: Tactile HoldToRevealCard with Animated Progress Ring & Haptics */
+          /* WORD MODE: Classic clean HoldToRevealCard */
           <div className="w-full space-y-4 touch-none">
             <div className="text-center space-y-1">
               <p className="text-sm font-semibold text-[#F4F4F8]">
@@ -445,10 +435,32 @@ export const PrivacyPassScreen: React.FC<PrivacyPassScreenProps> = ({
               onClick={handleWordDone}
               className="w-full min-h-[54px] rounded-2xl bg-cyan-400 font-display text-base font-extrabold text-[#061318] shadow-lg shadow-cyan-500/20 hover:bg-cyan-300 disabled:bg-white/[0.08] disabled:text-[#666680] disabled:shadow-none active:scale-[0.98] transition-all cursor-pointer disabled:cursor-not-allowed"
             >
-              {isFinalRemainingPlayer ? 'Hide & Start Discussion' : 'Hide & Pass Phone'}
+              {isFinalRemainingPlayer ? 'Hide & Start Discussion' : 'Hide & Back to Players'}
             </button>
 
-            {canBackOutSafely && (
+            <div className="min-h-[44px] flex items-center justify-center">
+              {canBackOutSafely ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    playTapSound();
+                    setSelectedPlayerId(null);
+                  }}
+                  className="flex w-full min-h-[44px] items-center justify-center gap-1.5 rounded-2xl text-xs font-semibold text-[#9898B0] hover:bg-white/[0.06] hover:text-white transition-colors cursor-pointer"
+                >
+                  <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span>Wrong person? Back to players</span>
+                </button>
+              ) : (
+                <p className="text-center text-xs text-[#666680]">
+                  {isHolding ? 'Release finger to hide card' : 'Tap above when ready'}
+                </p>
+              )}
+            </div>
+          </>
+        ) : (
+          <div className="min-h-[44px] flex items-center justify-center">
+            {canBackOutSafely ? (
               <button
                 type="button"
                 onClick={() => {
@@ -460,79 +472,14 @@ export const PrivacyPassScreen: React.FC<PrivacyPassScreenProps> = ({
                 <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
                 <span>Wrong person? Back to players</span>
               </button>
+            ) : (
+              <p className="text-center text-xs text-[#666680]">
+                Answers stay completely secret until everyone submits
+              </p>
             )}
-          </>
-        ) : canBackOutSafely ? (
-          <button
-            type="button"
-            onClick={() => {
-              playTapSound();
-              setSelectedPlayerId(null);
-            }}
-            className="flex w-full min-h-[44px] items-center justify-center gap-1.5 rounded-2xl text-xs font-semibold text-[#9898B0] hover:bg-white/[0.06] hover:text-white transition-colors cursor-pointer"
-          >
-            <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
-            <span>Wrong person? Back to players</span>
-          </button>
-        ) : (
-          <p className="text-center text-xs text-[#666680]">
-            Answers stay completely secret until everyone submits
-          </p>
+          </div>
         )}
       </div>
-
-      {/* Smooth Pass-to-Next-Player Privacy Curtain Overlay */}
-      <AnimatePresence>
-        {passCurtainFromName && (
-          <motion.div
-            data-testid="privacy-curtain"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-40 flex flex-col items-center justify-center bg-[#07070C]/98 backdrop-blur-xl px-6 text-center"
-          >
-            <motion.div
-              initial={{ scale: 0.94, opacity: 0, y: 12 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.96, opacity: 0 }}
-              transition={{ type: 'spring', damping: 28, stiffness: 340 }}
-              className="w-full max-w-sm rounded-[28px] bg-[#13131E] border border-white/[0.1] p-7 space-y-5 shadow-2xl"
-            >
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-cyan-400/12 border border-cyan-400/30 text-cyan-300">
-                <Lock className="h-7 w-7" aria-hidden="true" />
-              </div>
-
-              <div className="space-y-1.5">
-                <p className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-400">
-                  {passCurtainFromName}’s Screen Hidden
-                </p>
-                <h2 className="font-display text-2xl font-extrabold text-white">
-                  {nextSuggestedPlayer
-                    ? `Pass to ${nextSuggestedPlayer.name}`
-                    : 'Pass the Phone'}
-                </h2>
-                <p className="text-xs text-[#8D8DA8]">
-                  Hand the phone to the next player ({remainingCount} left) before tapping below.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                data-testid="dismiss-privacy-curtain-btn"
-                onClick={() => {
-                  playTapSound();
-                  triggerHaptic(10);
-                  setPassCurtainFromName(null);
-                }}
-                className="w-full min-h-[52px] rounded-2xl bg-cyan-400 font-display text-base font-extrabold text-[#061318] hover:bg-cyan-300 active:scale-[0.98] transition-all cursor-pointer"
-              >
-                Ready — Show Players
-              </button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </main>
   );
 };

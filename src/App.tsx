@@ -766,6 +766,7 @@ export default function App() {
     setRoundCount(nextRoundNumber);
     setUsedHistory(created.updatedHistory);
     setRoundScoreDeltas({});
+    setShowPassSettingsSheet(false);
     setIsPassLobby(true);
     setPhase('privacy_pass');
 

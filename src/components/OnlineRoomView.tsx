@@ -764,6 +764,7 @@ export const OnlineRoomView: React.FC<OnlineRoomViewProps> = ({
                   setShowDecksSheet(false);
                   onEditCustomDeck(deck);
                 }}
+                embedded
               />
             </BottomSheet>
 

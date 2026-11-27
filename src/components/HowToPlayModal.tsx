@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { HelpCircle, MessageSquareText, ShieldAlert, Sparkles } from 'lucide-react';
 import { GameMode } from '../types/game';
 import { BottomSheet } from './BottomSheet';
@@ -16,6 +16,12 @@ export const HowToPlayModal: React.FC<HowToPlayModalProps> = ({
   onClose,
 }) => {
   const [activeTab, setActiveTab] = useState<GameMode>(initialMode);
+
+  useEffect(() => {
+    if (isOpen) {
+      setActiveTab(initialMode);
+    }
+  }, [isOpen, initialMode]);
 
   return (
     <BottomSheet

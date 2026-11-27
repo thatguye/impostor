@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { AnimatePresence, motion } from 'motion/react';
+import { AnimatePresence, motion, useDragControls } from 'motion/react';
 import { X } from 'lucide-react';
 import { playTapSound } from '../utils/audio';
 
@@ -26,6 +26,8 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
   children,
   testId,
 }) => {
+  const dragControls = useDragControls();
+
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -38,6 +40,12 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
   }, [isOpen, onClose]);
 
   const titleId = `sheet-title-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+
+  const handleHeaderPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement | null;
+    if (target?.closest('button, input, textarea, select, a')) return;
+    dragControls.start(e);
+  };
 
   return (
     <AnimatePresence>
@@ -63,13 +71,15 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
             aria-hidden="true"
           />
 
-          {/* Sheet Surface */}
+          {/* Sheet Surface — drag only initiated from handle/header so body scrolling & inputs work cleanly */}
           <motion.div
             initial={{ y: '100%', opacity: 0.85 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: '100%', opacity: 0.85 }}
             transition={{ type: 'spring', damping: 32, stiffness: 360, mass: 0.8 }}
             drag="y"
+            dragControls={dragControls}
+            dragListener={false}
             dragConstraints={{ top: 0, bottom: 0 }}
             dragElastic={{ top: 0.04, bottom: 0.35 }}
             onDragEnd={(_e, info) => {
@@ -80,38 +90,42 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
             }}
             className={`relative z-10 flex max-h-[90dvh] w-full ${maxWidthClass} flex-col rounded-t-[28px] sm:rounded-[28px] bg-[#13131E] border border-white/[0.1] shadow-[0_24px_80px_rgba(0,0,0,0.75)] overflow-hidden`}
           >
-            {/* Mobile Drag Handle */}
-            <div className="sm:hidden pt-3 pb-1 flex justify-center cursor-grab active:cursor-grabbing">
-              <div className="h-1.5 w-11 rounded-full bg-white/20" />
-            </div>
-
-            {/* Header */}
-            <div className="flex items-center justify-between gap-3 px-5 sm:px-6 pt-3.5 sm:pt-5 pb-3.5 border-b border-white/[0.08]">
-              <div className="flex items-center gap-2.5 min-w-0">
-                {icon && <span className="shrink-0">{icon}</span>}
-                <div className="min-w-0">
-                  <h2
-                    id={titleId}
-                    className="font-display text-lg sm:text-xl font-extrabold text-[#F4F4F8] tracking-tight truncate"
-                  >
-                    {title}
-                  </h2>
-                  {subtitle && (
-                    <p className="text-xs text-[#8D8DA8] truncate">{subtitle}</p>
-                  )}
-                </div>
+            {/* Mobile Drag Handle + Header (Drag Trigger Zone) */}
+            <div
+              onPointerDown={handleHeaderPointerDown}
+              className="touch-none select-none shrink-0"
+            >
+              <div className="sm:hidden pt-3 pb-1 flex justify-center cursor-grab active:cursor-grabbing">
+                <div className="h-1.5 w-11 rounded-full bg-white/20" />
               </div>
-              <button
-                type="button"
-                onClick={() => {
-                  playTapSound();
-                  onClose();
-                }}
-                aria-label={`Close ${title}`}
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/[0.06] text-[#9898B0] hover:bg-white/[0.12] hover:text-white transition-colors cursor-pointer"
-              >
-                <X className="h-4 w-4" aria-hidden="true" />
-              </button>
+
+              <div className="flex items-center justify-between gap-3 px-5 sm:px-6 pt-3.5 sm:pt-5 pb-3.5 border-b border-white/[0.08]">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  {icon && <span className="shrink-0">{icon}</span>}
+                  <div className="min-w-0">
+                    <h2
+                      id={titleId}
+                      className="font-display text-lg sm:text-xl font-extrabold text-[#F4F4F8] tracking-tight truncate"
+                    >
+                      {title}
+                    </h2>
+                    {subtitle && (
+                      <p className="text-xs text-[#8D8DA8] truncate">{subtitle}</p>
+                    )}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    playTapSound();
+                    onClose();
+                  }}
+                  aria-label={`Close ${title}`}
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/[0.06] text-[#9898B0] hover:bg-white/[0.12] hover:text-white transition-colors cursor-pointer"
+                >
+                  <X className="h-4 w-4" aria-hidden="true" />
+                </button>
+              </div>
             </div>
 
             {/* Scrollable Body */}

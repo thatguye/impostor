@@ -13,14 +13,11 @@ interface HoldToRevealCardProps {
   onPeeked?: () => void;
 }
 
-const RING_RADIUS = 38;
-const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
-
 export const HoldToRevealCard: React.FC<HoldToRevealCardProps> = ({
   assignment,
   categoryEmoji,
   categoryName,
-  subtitle = 'Hold your thumb down to flip. Letting go hides it instantly.',
+  subtitle = 'Press and hold anywhere on this card. Release to hide it instantly.',
   testId = 'hold-reveal-card',
   onHoldingChange,
   onPeeked,
@@ -47,7 +44,7 @@ export const HoldToRevealCard: React.FC<HoldToRevealCardProps> = ({
     setHasPeeked(true);
     onHoldingChange?.(true);
     onPeeked?.();
-    triggerHaptic(15);
+    triggerHaptic(14);
     playCardFlipSound(true);
   };
 
@@ -93,7 +90,7 @@ export const HoldToRevealCard: React.FC<HoldToRevealCardProps> = ({
       <button
         type="button"
         data-testid={testId}
-        aria-label="Press and Hold to Reveal Role"
+        aria-label="Hold to Reveal Role"
         aria-pressed={isHolding}
         onPointerDown={(e) => {
           e.preventDefault();
@@ -144,85 +141,33 @@ export const HoldToRevealCard: React.FC<HoldToRevealCardProps> = ({
           }
         }}
         onContextMenu={(e) => e.preventDefault()}
-        className="no-select-touch touch-none relative block w-full h-[min(350px,50dvh)] sm:h-[min(370px,52dvh)] text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 rounded-[28px] cursor-pointer"
+        className="no-select-touch touch-none relative block w-full h-[min(390px,56dvh)] sm:h-[min(420px,58dvh)] text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400 rounded-3xl cursor-pointer"
       >
         <div
           className={`card-flip-inner preserve-3d relative h-full w-full ${
             isHolding ? 'rotate-y-180' : ''
           }`}
         >
-          {/* FRONT FACE (Hidden / Progress Ring Hold Surface) */}
-          <div className="backface-hidden absolute inset-0 flex flex-col items-center justify-center rounded-[28px] bg-[#13131E] border-2 border-white/[0.1] p-6 text-center shadow-[0_20px_50px_rgba(0,0,0,0.55)] overflow-hidden">
-            {/* Subtle corner tactical brackets */}
-            <span
-              aria-hidden="true"
-              className="absolute top-4 left-4 h-4 w-4 rounded-tl-md border-t-2 border-l-2 border-white/[0.12]"
-            />
-            <span
-              aria-hidden="true"
-              className="absolute top-4 right-4 h-4 w-4 rounded-tr-md border-t-2 border-r-2 border-white/[0.12]"
-            />
-            <span
-              aria-hidden="true"
-              className="absolute bottom-4 left-4 h-4 w-4 rounded-bl-md border-b-2 border-l-2 border-white/[0.12]"
-            />
-            <span
-              aria-hidden="true"
-              className="absolute bottom-4 right-4 h-4 w-4 rounded-br-md border-b-2 border-r-2 border-white/[0.12]"
-            />
-
-            {/* Animated Hold Progress Ring */}
-            <div className="relative flex h-24 w-24 items-center justify-center mb-4">
-              <svg
-                className="absolute inset-0 h-full w-full -rotate-90"
-                viewBox="0 0 88 88"
-                aria-hidden="true"
-              >
-                <circle
-                  cx="44"
-                  cy="44"
-                  r={RING_RADIUS}
-                  fill="none"
-                  stroke="rgba(255,255,255,0.08)"
-                  strokeWidth="4"
-                />
-                <circle
-                  cx="44"
-                  cy="44"
-                  r={RING_RADIUS}
-                  fill="none"
-                  stroke={hasPeeked ? '#34D399' : '#22D3EE'}
-                  strokeWidth="4"
-                  strokeLinecap="round"
-                  strokeDasharray={RING_CIRCUMFERENCE}
-                  strokeDashoffset={
-                    isHolding ? 0 : hasPeeked ? 0 : RING_CIRCUMFERENCE * 0.72
-                  }
-                  style={{
-                    transition: 'stroke-dashoffset 0.32s cubic-bezier(0.16, 1, 0.3, 1)',
-                  }}
-                />
-              </svg>
-              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/[0.05] border border-white/[0.1] text-cyan-400">
-                <Fingerprint className="h-9 w-9" aria-hidden="true" />
-              </div>
+          {/* FRONT FACE (Original Clean Hidden Role Card) */}
+          <div className="backface-hidden absolute inset-0 flex flex-col items-center justify-center rounded-3xl bg-[#14141F] border-2 border-white/[0.1] p-7 text-center shadow-2xl">
+            <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-white/[0.05] border border-white/[0.1] text-cyan-400 mb-5">
+              <Fingerprint className="h-10 w-10" aria-hidden="true" />
             </div>
 
-            <h2 className="font-display text-2xl font-extrabold text-[#F4F4F8] tracking-tight">
-              Press & Hold to Reveal
+            <h2 className="font-display text-2xl font-extrabold text-[#F4F4F8]">
+              Hold to Reveal Role
             </h2>
-            <p className="mt-1.5 max-w-xs text-xs sm:text-sm text-[#9898B0]">
-              {subtitle}
-            </p>
-            <div className="mt-5 flex items-center gap-2 text-xs font-semibold text-[#75758E]">
+            <p className="mt-2 max-w-xs text-sm text-[#9898B0]">{subtitle}</p>
+
+            <div className="mt-6 flex items-center gap-2 text-xs font-semibold text-[#75758E]">
               <EyeOff className="h-4 w-4" aria-hidden="true" />
-              <span>{hasPeeked ? 'Role viewed · Safe to continue' : 'Card is hidden'}</span>
+              <span>{hasPeeked ? 'Role viewed · Safe to pass' : 'Card is hidden'}</span>
             </div>
           </div>
 
-          {/* BACK FACE (Revealed Secret Role) */}
+          {/* BACK FACE (Original Clean Revealed Secret Role) */}
           <div
-            className={`backface-hidden rotate-y-180 absolute inset-0 flex flex-col items-center justify-between rounded-[28px] border-2 p-6 text-center shadow-[0_24px_60px_rgba(0,0,0,0.65)] ${
+            className={`backface-hidden rotate-y-180 absolute inset-0 flex flex-col items-center justify-between rounded-3xl border-2 p-7 text-center shadow-2xl ${
               showImpostorAlert
                 ? 'bg-[#200D16] border-rose-500/75'
                 : 'bg-[#0C1C26] border-cyan-400/75'
@@ -239,16 +184,16 @@ export const HoldToRevealCard: React.FC<HoldToRevealCardProps> = ({
             </div>
 
             {assignment.isImpostor ? (
-              <div className="space-y-3.5 my-auto w-full">
-                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-500/20 border border-rose-500/45 text-rose-400">
-                  <ShieldAlert className="h-7 w-7" aria-hidden="true" />
+              <div className="space-y-4 my-auto w-full">
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-rose-500/20 border border-rose-500/45 text-rose-400">
+                  <ShieldAlert className="h-8 w-8" aria-hidden="true" />
                 </div>
                 <h2 className="font-display text-2xl sm:text-3xl font-extrabold text-rose-400 tracking-tight">
                   YOU ARE THE IMPOSTOR
                 </h2>
 
                 {assignment.hintWord && (
-                  <div className="mx-auto max-w-xs rounded-2xl bg-black/35 border border-rose-400/30 px-4 py-2.5">
+                  <div className="mx-auto max-w-xs rounded-2xl bg-black/35 border border-rose-400/30 px-4 py-3">
                     <p className="text-[11px] font-semibold text-rose-200/80">Subtle Hint</p>
                     <p className="mt-0.5 font-display text-lg sm:text-xl font-bold text-white">
                       {assignment.hintWord}
@@ -271,7 +216,7 @@ export const HoldToRevealCard: React.FC<HoldToRevealCardProps> = ({
             ) : (
               <div className="space-y-3 my-auto w-full">
                 <p className="text-xs font-bold uppercase tracking-[0.16em] text-cyan-300">
-                  Crewmate · Secret Word
+                  Secret Word
                 </p>
                 <h2 className="font-display text-3xl sm:text-4xl font-extrabold text-white tracking-tight break-words">
                   {assignment.secretWord}
@@ -287,13 +232,13 @@ export const HoldToRevealCard: React.FC<HoldToRevealCardProps> = ({
                   </div>
                 ) : (
                   <p className="text-xs text-cyan-100/70 max-w-xs mx-auto pt-1">
-                    Give a clever clue that proves you know it without handing it to the Impostor.
+                    Give a clever clue that proves you know it without giving it away.
                   </p>
                 )}
               </div>
             )}
 
-            <p className="text-[11px] font-medium text-[#9898B0]">
+            <p className="text-xs font-medium text-[#9898B0]">
               Release finger to hide immediately
             </p>
           </div>

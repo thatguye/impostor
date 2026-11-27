@@ -37,6 +37,12 @@ export const DiscussionScreen: React.FC<DiscussionScreenProps> = ({
   const [isPaused, setIsPaused] = useState<boolean>(false);
   const [confirmRevealAll, setConfirmRevealAll] = useState(false);
 
+  useEffect(() => {
+    setSecondsLeft(initialTimerSeconds);
+    setIsPaused(false);
+    setConfirmRevealAll(false);
+  }, [round.id, initialTimerSeconds]);
+
   const playerMap = new Map(players.map((p) => [p.id, p]));
   const startingPlayer = playerMap.get(round.startingPlayerId);
 

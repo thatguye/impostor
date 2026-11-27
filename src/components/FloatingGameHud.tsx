@@ -49,7 +49,7 @@ export const FloatingGameHud: React.FC<FloatingGameHudProps> = ({
     <>
       <div
         data-testid="floating-game-hud"
-        className="sticky top-[calc(env(safe-area-inset-top)+8px)] z-20 mx-auto w-full max-w-2xl"
+        className="sticky top-[calc(env(safe-area-inset-top)+68px)] z-20 mx-auto w-full max-w-2xl"
       >
         <div className="flex items-center justify-between gap-2.5 rounded-2xl bg-[#13131E]/95 backdrop-blur-xl border border-white/[0.1] px-3.5 py-2.5 shadow-[0_12px_36px_rgba(0,0,0,0.45)]">
           {/* Left: Phase + Timer */}

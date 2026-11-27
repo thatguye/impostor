@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'motion/react';
 import {
   ArrowLeft,
@@ -43,6 +43,14 @@ export const VotingScreen: React.FC<VotingScreenProps> = ({
   const [ballotVotes, setBallotVotes] = useState<Record<string, string>>({});
   const [ballotDraft, setBallotDraft] = useState<string | null>(null);
   const [showBallotTally, setShowBallotTally] = useState(false);
+
+  useEffect(() => {
+    setSelectedId(null);
+    setActiveVoterId(null);
+    setBallotVotes({});
+    setBallotDraft(null);
+    setShowBallotTally(false);
+  }, [round.id, round.eliminatedOrder.length]);
 
   const playerMap = new Map(players.map((p) => [p.id, p]));
   const activePlayers = round.playerOrder
@@ -277,7 +285,7 @@ export const VotingScreen: React.FC<VotingScreenProps> = ({
                 setVoteStyle('group');
                 setActiveVoterId(null);
               }}
-              className={`min-h-[34px] rounded-lg px-2.5 text-xs font-bold transition-colors cursor-pointer ${
+              className={`min-h-[34px] rounded-lg px-2.5 text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
                 voteStyle === 'group'
                   ? 'bg-cyan-400/18 text-cyan-300'
                   : 'text-[#8D8DA8] hover:text-white'
@@ -293,7 +301,7 @@ export const VotingScreen: React.FC<VotingScreenProps> = ({
                 setActiveVoterId(null);
                 setBallotDraft(null);
               }}
-              className={`min-h-[34px] rounded-lg px-2.5 text-xs font-bold transition-colors cursor-pointer ${
+              className={`min-h-[34px] rounded-lg px-2.5 text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
                 voteStyle === 'ballot'
                   ? 'bg-cyan-400/18 text-cyan-300'
                   : 'text-[#8D8DA8] hover:text-white'
@@ -508,26 +516,40 @@ export const VotingScreen: React.FC<VotingScreenProps> = ({
             )}
           </>
         ) : activeVoter ? (
-          <button
-            type="button"
-            disabled={!ballotDraft}
-            onClick={() => {
-              if (!ballotDraft) return;
-              playTapSound();
-              triggerHaptic(14);
-              const nextVotes = { ...ballotVotes, [activeVoter.id]: ballotDraft };
-              setBallotVotes(nextVotes);
-              setActiveVoterId(null);
-              setBallotDraft(null);
-              if (Object.keys(nextVotes).length >= activePlayers.length) {
-                setShowBallotTally(true);
-              }
-            }}
-            className="flex w-full min-h-[54px] items-center justify-center gap-2 rounded-2xl bg-cyan-400 font-display text-base font-extrabold text-[#061318] disabled:bg-white/[0.08] disabled:text-[#666680] cursor-pointer"
-          >
-            <Vote className="h-5 w-5" aria-hidden="true" />
-            <span>Lock In Secret Vote</span>
-          </button>
+          <>
+            <button
+              type="button"
+              disabled={!ballotDraft}
+              onClick={() => {
+                if (!ballotDraft) return;
+                playTapSound();
+                triggerHaptic(14);
+                const nextVotes = { ...ballotVotes, [activeVoter.id]: ballotDraft };
+                setBallotVotes(nextVotes);
+                setActiveVoterId(null);
+                setBallotDraft(null);
+                if (Object.keys(nextVotes).length >= activePlayers.length) {
+                  setShowBallotTally(true);
+                }
+              }}
+              className="flex w-full min-h-[54px] items-center justify-center gap-2 rounded-2xl bg-cyan-400 font-display text-base font-extrabold text-[#061318] disabled:bg-white/[0.08] disabled:text-[#666680] cursor-pointer disabled:cursor-not-allowed"
+            >
+              <Vote className="h-5 w-5" aria-hidden="true" />
+              <span>Lock In Secret Vote</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                playTapSound();
+                setActiveVoterId(null);
+                setBallotDraft(null);
+              }}
+              className="flex w-full min-h-[44px] items-center justify-center gap-1.5 rounded-2xl text-xs font-semibold text-[#9898B0] hover:bg-white/[0.06] hover:text-white transition-colors cursor-pointer"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>Wrong person? Back to voters</span>
+            </button>
+          </>
         ) : (
           votedCount > 0 && (
             <button
