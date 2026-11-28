@@ -213,6 +213,7 @@ export function createRound(
     allHints: hintsList,
     mainQuestion: picked.questionPair ? picked.questionPair.main : null,
     decoyQuestion: picked.questionPair ? picked.questionPair.decoy : null,
+    blindLiarMode: settings.blindLiarMode,
     submittedAnswers: {},
     impostorCount,
     hideImpostorCount:
@@ -433,8 +434,13 @@ export function parseBulkImportWords(rawText: string, prefix = 'custom-w'): Bulk
       return;
     }
 
-    const [word, hint1, hint2] = parts;
-    const hints: [string] | [string, string] = hint2 ? [hint1, hint2] : [hint1];
+    const [word, hint1, hint2, hint3] = parts;
+    const hints: WordEntry['hints'] =
+      hint2 && hint3
+        ? [hint1, hint2, hint3]
+        : hint2
+        ? [hint1, hint2]
+        : [hint1];
     entries.push({
       id: `${prefix}-${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 6)}`,
       word,

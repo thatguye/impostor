@@ -364,10 +364,24 @@ export const OnlineRoomView: React.FC<OnlineRoomViewProps> = ({
 
     const handleSelectAllDecks = () => {
       if (!isHost) return;
-      const validIds = effectiveDecks
+      const modeIds = effectiveDecks
         .filter((d) => (room.settings.mode === 'word' ? d.words.length > 0 : d.questions.length > 0))
         .map((d) => d.id);
-      onUpdateLobbyConfig({ selectedDeckIds: validIds });
+      onUpdateLobbyConfig({
+        selectedDeckIds: Array.from(new Set([...room.selectedDeckIds, ...modeIds])),
+      });
+    };
+
+    const handleDeselectAllDecks = () => {
+      if (!isHost) return;
+      const modeIds = new Set(
+        effectiveDecks
+          .filter((d) => (room.settings.mode === 'word' ? d.words.length > 0 : d.questions.length > 0))
+          .map((d) => d.id)
+      );
+      onUpdateLobbyConfig({
+        selectedDeckIds: room.selectedDeckIds.filter((id) => !modeIds.has(id)),
+      });
     };
 
     const balancedCount = calculateBalancedImpostorCount(Math.max(3, room.players.length));
@@ -673,6 +687,12 @@ export const OnlineRoomView: React.FC<OnlineRoomViewProps> = ({
                   <span>Hints On</span>
                 </>
               )}
+              {room.settings.mode === 'question' && (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <span>{room.settings.blindLiarMode ? 'Blind Liar' : 'Labeled Impostor'}</span>
+                </>
+              )}
               {room.settings.survivalMode && (
                 <>
                   <span aria-hidden="true">·</span>
@@ -754,7 +774,8 @@ export const OnlineRoomView: React.FC<OnlineRoomViewProps> = ({
                 usedHistory={room.usedHistory}
                 onToggleDeck={handleToggleDeck}
                 onSelectAll={handleSelectAllDecks}
-                onDeselectAll={() => onUpdateLobbyConfig({ selectedDeckIds: [] })}
+                onDeselectAll={handleDeselectAllDecks}
+                onChangeMode={handleModeSwitch}
                 onResetHistory={onResetHistory}
                 onCreateCustomDeck={() => {
                   setShowDecksSheet(false);
@@ -949,9 +970,11 @@ export const OnlineRoomView: React.FC<OnlineRoomViewProps> = ({
 
                       <div
                         aria-hidden={!isQuestionOpen}
-                        className={`backface-hidden rotate-y-180 absolute inset-0 flex flex-col justify-between rounded-[28px] bg-[#0C1C26] border-2 border-cyan-400/75 p-5 shadow-2xl ${
-                          !isQuestionOpen ? 'pointer-events-none' : ''
-                        }`}
+                        className={`backface-hidden rotate-y-180 absolute inset-0 flex flex-col justify-between rounded-[28px] border-2 p-5 shadow-2xl ${
+                          round.blindLiarMode === false && myAssignment.isImpostor
+                            ? 'bg-[#220D16] border-rose-500/80'
+                            : 'bg-[#0C1C26] border-cyan-400/75'
+                        } ${!isQuestionOpen ? 'pointer-events-none' : ''}`}
                       >
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-xs font-bold text-[#9898B0] truncate">
@@ -971,12 +994,25 @@ export const OnlineRoomView: React.FC<OnlineRoomViewProps> = ({
                         </div>
 
                         <div className="my-auto space-y-2 text-center py-2">
-                          <p className="text-xs font-bold uppercase tracking-[0.14em] text-cyan-300">
-                            Your Secret Question
-                          </p>
+                          {round.blindLiarMode === false && myAssignment.isImpostor ? (
+                            <p className="text-xs font-bold uppercase tracking-[0.14em] text-rose-400">
+                              Impostor Question · Blend In!
+                            </p>
+                          ) : (
+                            <p className="text-xs font-bold uppercase tracking-[0.14em] text-cyan-300">
+                              Your Secret Question
+                            </p>
+                          )}
                           <h2 className="font-display text-lg sm:text-xl font-bold text-white leading-snug">
                             “{myAssignment.promptQuestion}”
                           </h2>
+                          {round.blindLiarMode === false &&
+                            myAssignment.isImpostor &&
+                            myAssignment.fellowImpostorNames.length > 0 && (
+                              <p className="text-[11px] font-medium text-rose-200/80">
+                                Teammates: {myAssignment.fellowImpostorNames.join(', ')}
+                              </p>
+                            )}
                         </div>
 
                         <form
@@ -1582,6 +1618,33 @@ export const OnlineRoomView: React.FC<OnlineRoomViewProps> = ({
                 </>
               )}
             </motion.section>
+
+            {/* Side-by-side Question Reveal when Question Round finishes */}
+            {round.mode === 'question' &&
+              round.winner &&
+              (round.mainQuestion || round.decoyQuestion) && (
+                <section
+                  data-testid="online-question-reveal-comparison"
+                  className="grid grid-cols-1 sm:grid-cols-2 gap-3"
+                >
+                  <div className="rounded-2xl bg-[#0D1E26] border border-cyan-400/30 p-4 space-y-1">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-cyan-300">
+                      Crew Question
+                    </p>
+                    <p className="text-sm font-semibold text-white leading-snug">
+                      “{round.mainQuestion}”
+                    </p>
+                  </div>
+                  <div className="rounded-2xl bg-[#220E18] border border-rose-500/35 p-4 space-y-1">
+                    <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-rose-400">
+                      Impostor Question
+                    </p>
+                    <p className="text-sm font-semibold text-white leading-snug">
+                      “{round.decoyQuestion}”
+                    </p>
+                  </div>
+                </section>
+              )}
 
             {/* Animated Vote Tally Breakdown */}
             <section className="rounded-[26px] bg-[#13131E] border border-white/[0.08] p-5 space-y-3.5">

@@ -1,14 +1,14 @@
 import { QuestionPair, WordEntry } from '../../types/game';
 
-export function w(
+export function w3(
   cat: string,
-  items: Array<[string, string, string, string]>
+  items: Array<[string, string, string, string, string]>
 ): WordEntry[] {
-  return items.map(([word, description, h1, h2], i) => ({
+  return items.map(([word, description, h1, h2, h3], i) => ({
     id: `${cat}-w-${i + 1}`,
     word,
     description,
-    hints: [h1, h2],
+    hints: [h1, h2, h3],
   }));
 }
 

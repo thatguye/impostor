@@ -1,5 +1,16 @@
 import React, { useMemo, useState } from 'react';
-import { Check, Layers, Pencil, Plus, RotateCcw, Search, X } from 'lucide-react';
+import {
+  Check,
+  ChevronDown,
+  Layers,
+  MessageCircleQuestion,
+  Pencil,
+  Plus,
+  RotateCcw,
+  Search,
+  Type,
+  X,
+} from 'lucide-react';
 import { CategoryDeck, GameMode, UsedHistory } from '../types/game';
 import { playTapSound } from '../utils/audio';
 
@@ -14,6 +25,7 @@ interface CategoryBrowserProps {
   onResetHistory: () => void;
   onCreateCustomDeck: () => void;
   onEditCustomDeck: (deck: CategoryDeck) => void;
+  onChangeMode?: (mode: GameMode) => void;
   embedded?: boolean;
 }
 
@@ -28,9 +40,11 @@ export const CategoryBrowser: React.FC<CategoryBrowserProps> = ({
   onResetHistory,
   onCreateCustomDeck,
   onEditCustomDeck,
+  onChangeMode,
   embedded = false,
 }) => {
   const [query, setQuery] = useState('');
+  const [previewDeckId, setPreviewDeckId] = useState<string | null>(null);
 
   const selectedSet = useMemo(() => new Set(selectedDeckIds), [selectedDeckIds]);
   const usedSet = useMemo(
@@ -38,21 +52,43 @@ export const CategoryBrowser: React.FC<CategoryBrowserProps> = ({
     [mode, usedHistory]
   );
 
+  const wordDecksCount = useMemo(
+    () => decks.filter((d) => d.words.length > 0).length,
+    [decks]
+  );
+  const questionDecksCount = useMemo(
+    () => decks.filter((d) => d.questions.length > 0).length,
+    [decks]
+  );
+
+  const modeDecks = useMemo(
+    () =>
+      decks.filter((d) =>
+        mode === 'word' ? d.words.length > 0 : d.questions.length > 0
+      ),
+    [decks, mode]
+  );
+
   const filteredDecks = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return decks;
-    return decks.filter(
+    if (!q) return modeDecks;
+    return modeDecks.filter(
       (d) =>
         d.name.toLowerCase().includes(q) ||
         d.description.toLowerCase().includes(q)
     );
-  }, [decks, query]);
+  }, [modeDecks, query]);
+
+  const selectedModeDecksCount = useMemo(
+    () => modeDecks.filter((d) => selectedSet.has(d.id)).length,
+    [modeDecks, selectedSet]
+  );
 
   const totalSelectedPrompts = useMemo(() => {
-    return decks
+    return modeDecks
       .filter((d) => selectedSet.has(d.id))
       .reduce((sum, d) => sum + (mode === 'word' ? d.words.length : d.questions.length), 0);
-  }, [decks, selectedSet, mode]);
+  }, [modeDecks, selectedSet, mode]);
 
   const totalUsedInMode = mode === 'word' ? usedHistory.word.length : usedHistory.question.length;
 
@@ -61,7 +97,7 @@ export const CategoryBrowser: React.FC<CategoryBrowserProps> = ({
       aria-labelledby={embedded ? undefined : 'categories-heading'}
       className={
         embedded
-          ? 'space-y-4'
+          ? 'space-y-3.5'
           : 'rounded-3xl bg-[#14141F] border border-white/[0.08] p-5 space-y-4'
       }
     >
@@ -76,7 +112,7 @@ export const CategoryBrowser: React.FC<CategoryBrowserProps> = ({
               </h2>
             </div>
             <p className="mt-0.5 text-xs text-[#9898B0] font-mono tabular-nums">
-              {selectedDeckIds.length} of {decks.length} selected · {totalSelectedPrompts}{' '}
+              {selectedModeDecksCount} of {modeDecks.length} selected · {totalSelectedPrompts}{' '}
               {mode === 'word' ? 'words' : 'questions'} ready
             </p>
           </div>
@@ -95,6 +131,56 @@ export const CategoryBrowser: React.FC<CategoryBrowserProps> = ({
         </div>
       )}
 
+      {/* Mode Filter Switcher (Word Decks vs Question Decks) */}
+      {onChangeMode && (
+        <div
+          role="tablist"
+          aria-label="Filter decks by game mode"
+          className="grid grid-cols-2 gap-1.5 rounded-2xl bg-[#09090E] p-1 border border-white/[0.06]"
+        >
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mode === 'word'}
+            onClick={() => {
+              if (mode === 'word') return;
+              playTapSound();
+              setPreviewDeckId(null);
+              setQuery('');
+              onChangeMode('word');
+            }}
+            className={`flex min-h-[40px] items-center justify-center gap-1.5 rounded-xl px-2.5 text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+              mode === 'word'
+                ? 'bg-[#1C1C2B] text-cyan-300 border border-cyan-400/30'
+                : 'text-[#8D8DA8] hover:text-[#F4F4F8]'
+            }`}
+          >
+            <Type className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            <span>Word Decks ({wordDecksCount})</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mode === 'question'}
+            onClick={() => {
+              if (mode === 'question') return;
+              playTapSound();
+              setPreviewDeckId(null);
+              setQuery('');
+              onChangeMode('question');
+            }}
+            className={`flex min-h-[40px] items-center justify-center gap-1.5 rounded-xl px-2.5 text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+              mode === 'question'
+                ? 'bg-[#1C1C2B] text-rose-300 border border-rose-500/35'
+                : 'text-[#8D8DA8] hover:text-[#F4F4F8]'
+            }`}
+          >
+            <MessageCircleQuestion className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            <span>Question Decks ({questionDecksCount})</span>
+          </button>
+        </div>
+      )}
+
       {/* Search & Bulk Select Controls */}
       <div className="flex flex-col gap-2.5">
         <div className="flex items-center gap-2">
@@ -107,7 +193,7 @@ export const CategoryBrowser: React.FC<CategoryBrowserProps> = ({
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search 22+ decks..."
+              placeholder={`Search ${modeDecks.length} ${mode === 'word' ? 'word' : 'question'} decks...`}
               aria-label="Search category decks"
               className="w-full min-h-[44px] rounded-2xl bg-[#09090E] border border-white/10 pl-10 pr-9 text-sm text-[#F4F4F8] placeholder:text-[#666680] focus:border-cyan-400 focus:outline-none"
             />
@@ -138,42 +224,47 @@ export const CategoryBrowser: React.FC<CategoryBrowserProps> = ({
           )}
         </div>
 
-        <div className="flex items-center gap-1.5 shrink-0">
-          <button
-            type="button"
-            onClick={() => {
-              playTapSound();
-              onSelectAll();
-            }}
-            className="min-h-[40px] rounded-xl bg-white/[0.06] px-3 text-xs font-semibold text-[#D6D6E6] hover:bg-white/[0.12] transition-colors whitespace-nowrap cursor-pointer"
-          >
-            Select All
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              playTapSound();
-              onDeselectAll();
-            }}
-            className="min-h-[40px] rounded-xl bg-white/[0.06] px-3 text-xs font-semibold text-[#9898B0] hover:bg-white/[0.12] hover:text-white transition-colors whitespace-nowrap cursor-pointer"
-          >
-            Deselect All
-          </button>
-          {totalUsedInMode > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5 shrink-0">
             <button
               type="button"
               onClick={() => {
                 playTapSound();
-                onResetHistory();
+                onSelectAll();
               }}
-              aria-label="Reset played history"
-              title={`Reset ${totalUsedInMode} played prompts`}
-              className="flex min-h-[40px] items-center gap-1 rounded-xl bg-white/[0.06] px-3 text-xs font-semibold text-amber-300 hover:bg-amber-400/15 transition-colors whitespace-nowrap cursor-pointer"
+              className="min-h-[38px] rounded-xl bg-white/[0.06] px-3 text-xs font-semibold text-[#D6D6E6] hover:bg-white/[0.12] transition-colors whitespace-nowrap cursor-pointer"
             >
-              <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
-              <span>Reset Used</span>
+              Mix All ({modeDecks.length})
             </button>
-          )}
+            <button
+              type="button"
+              onClick={() => {
+                playTapSound();
+                onDeselectAll();
+              }}
+              className="min-h-[38px] rounded-xl bg-white/[0.06] px-3 text-xs font-semibold text-[#9898B0] hover:bg-white/[0.12] hover:text-white transition-colors whitespace-nowrap cursor-pointer"
+            >
+              Clear
+            </button>
+            {totalUsedInMode > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  playTapSound();
+                  onResetHistory();
+                }}
+                aria-label="Reset played history"
+                title={`Reset ${totalUsedInMode} played prompts`}
+                className="flex min-h-[38px] items-center gap-1 rounded-xl bg-white/[0.06] px-3 text-xs font-semibold text-amber-300 hover:bg-amber-400/15 transition-colors whitespace-nowrap cursor-pointer"
+              >
+                <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+                <span>Reset Used</span>
+              </button>
+            )}
+          </div>
+          <span className="text-[11px] font-medium text-[#787894]">
+            Tap any deck to mix · Arrow to preview
+          </span>
         </div>
       </div>
 
@@ -193,95 +284,155 @@ export const CategoryBrowser: React.FC<CategoryBrowserProps> = ({
         >
           {filteredDecks.map((deck) => {
             const isSelected = selectedSet.has(deck.id);
+            const isPreviewOpen = previewDeckId === deck.id;
             const items = mode === 'word' ? deck.words : deck.questions;
             const totalCount = items.length;
             const usedCount = items.filter((item) => usedSet.has(item.id)).length;
             const remaining = Math.max(0, totalCount - usedCount);
-            const unavailableForMode = totalCount === 0;
 
             return (
               <div
                 key={deck.id}
-                className={`relative flex items-stretch rounded-2xl border transition-all ${
+                className={`relative flex flex-col rounded-2xl border transition-all ${
                   isSelected
-                    ? 'bg-[#1B1C2E] border-cyan-400/60'
+                    ? mode === 'question'
+                      ? 'bg-[#1F1522] border-rose-400/55'
+                      : 'bg-[#181C2E] border-cyan-400/60'
                     : 'bg-[#0E0E17] border-white/[0.07] hover:border-white/[0.16]'
-                } ${unavailableForMode ? 'opacity-50' : ''}`}
+                }`}
               >
-                <button
-                  type="button"
-                  disabled={unavailableForMode}
-                  onClick={() => {
-                    playTapSound();
-                    onToggleDeck(deck.id);
-                  }}
-                  aria-pressed={isSelected}
-                  className="flex flex-1 items-start gap-3 p-3.5 text-left min-w-0 cursor-pointer disabled:cursor-not-allowed"
-                >
-                  <span
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-xl bg-white/[0.05]"
-                    aria-hidden="true"
-                  >
-                    {deck.emoji}
-                  </span>
-
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm font-bold text-[#F4F4F8] truncate">
-                        {deck.name}
-                      </span>
-                      <span
-                        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition-colors ${
-                          isSelected
-                            ? 'bg-cyan-400 border-cyan-400 text-[#061318]'
-                            : 'border-white/20 bg-transparent'
-                        }`}
-                        aria-hidden="true"
-                      >
-                        {isSelected && <Check className="h-3.5 w-3.5 stroke-[3]" />}
-                      </span>
-                    </div>
-
-                    <div className="mt-1 flex items-center gap-1.5 text-[11px] text-[#9898B0] font-mono tabular-nums">
-                      <span>
-                        {unavailableForMode
-                          ? `No ${mode === 'word' ? 'words' : 'questions'}`
-                          : `${remaining}/${totalCount} fresh`}
-                      </span>
-                      {deck.isCustom && (
-                        <>
-                          <span aria-hidden="true">·</span>
-                          <span className="font-sans text-cyan-300 font-medium">Custom</span>
-                        </>
-                      )}
-                      {deck.isSpicy && (
-                        <>
-                          <span aria-hidden="true">·</span>
-                          <span className="font-sans text-rose-400 font-medium">18+</span>
-                        </>
-                      )}
-                      {deck.isFamilyFriendly && (
-                        <>
-                          <span aria-hidden="true">·</span>
-                          <span className="font-sans text-emerald-400 font-medium">All Ages</span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </button>
-
-                {deck.isCustom && (
+                <div className="flex items-stretch">
                   <button
                     type="button"
                     onClick={() => {
                       playTapSound();
-                      onEditCustomDeck(deck);
+                      onToggleDeck(deck.id);
                     }}
-                    aria-label={`Edit custom deck ${deck.name}`}
-                    className="flex w-11 shrink-0 items-center justify-center border-l border-white/[0.06] text-[#9898B0] hover:bg-white/[0.06] hover:text-cyan-300 rounded-r-2xl cursor-pointer"
+                    aria-pressed={isSelected}
+                    className="flex flex-1 items-center gap-3 p-3.5 text-left min-w-0 cursor-pointer"
                   >
-                    <Pencil className="h-4 w-4" aria-hidden="true" />
+                    <span
+                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-xl bg-white/[0.05]"
+                      aria-hidden="true"
+                    >
+                      {deck.emoji}
+                    </span>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm font-bold text-[#F4F4F8] truncate">
+                          {deck.name}
+                        </span>
+                        <span
+                          className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition-colors ${
+                            isSelected
+                              ? mode === 'question'
+                                ? 'bg-rose-400 border-rose-400 text-[#18070D]'
+                                : 'bg-cyan-400 border-cyan-400 text-[#061318]'
+                              : 'border-white/20 bg-transparent'
+                          }`}
+                          aria-hidden="true"
+                        >
+                          {isSelected && <Check className="h-3.5 w-3.5 stroke-[3]" />}
+                        </span>
+                      </div>
+
+                      <div className="mt-1 flex items-center gap-1.5 text-[11px] text-[#9898B0] font-mono tabular-nums">
+                        <span>
+                          {remaining}/{totalCount}{' '}
+                          {mode === 'word' ? 'words' : 'pairs'}
+                        </span>
+                        {deck.isCustom && (
+                          <>
+                            <span aria-hidden="true">·</span>
+                            <span className="font-sans text-cyan-300 font-medium">Custom</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
                   </button>
+
+                  {/* Preview Sample Button */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      playTapSound();
+                      setPreviewDeckId((curr) => (curr === deck.id ? null : deck.id));
+                    }}
+                    aria-expanded={isPreviewOpen}
+                    aria-label={`Preview ${deck.name}`}
+                    className={`flex w-10 shrink-0 items-center justify-center border-l border-white/[0.06] text-[#8D8DA8] hover:bg-white/[0.06] hover:text-white transition-colors cursor-pointer ${
+                      deck.isCustom ? '' : 'rounded-r-2xl'
+                    }`}
+                  >
+                    <ChevronDown
+                      className={`h-4 w-4 transition-transform ${
+                        isPreviewOpen ? 'rotate-180 text-cyan-300' : ''
+                      }`}
+                      aria-hidden="true"
+                    />
+                  </button>
+
+                  {deck.isCustom && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        playTapSound();
+                        onEditCustomDeck(deck);
+                      }}
+                      aria-label={`Edit custom deck ${deck.name}`}
+                      className="flex w-10 shrink-0 items-center justify-center border-l border-white/[0.06] text-[#9898B0] hover:bg-white/[0.06] hover:text-cyan-300 rounded-r-2xl cursor-pointer"
+                    >
+                      <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Expandable Sample Preview */}
+                {isPreviewOpen && (
+                  <div className="border-t border-white/[0.07] bg-[#09090E]/70 px-3.5 py-3 rounded-b-2xl space-y-2.5">
+                    <p className="text-xs text-[#9898B0] leading-relaxed">{deck.description}</p>
+                    {mode === 'word' ? (
+                      <div className="space-y-1.5">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#787894]">
+                          Sample Words
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {deck.words.slice(0, 5).map((item) => (
+                            <span
+                              key={item.id}
+                              className="rounded-lg bg-white/[0.06] border border-white/[0.07] px-2 py-1 text-[11px] font-semibold text-[#E8E8F4]"
+                            >
+                              {item.word}
+                            </span>
+                          ))}
+                          {deck.words.length > 5 && (
+                            <span className="px-1 py-1 text-[11px] font-mono text-[#787894]">
+                              +{deck.words.length - 5} more
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#787894]">
+                          Sample Pair
+                        </p>
+                        {deck.questions[0] && (
+                          <div className="space-y-1 text-xs">
+                            <p className="text-[#E8E8F4]">
+                              <span className="font-bold text-cyan-300">Crew: </span>“
+                              {deck.questions[0].main}”
+                            </p>
+                            <p className="text-[#C8C8DC]">
+                              <span className="font-bold text-rose-400">Impostor: </span>“
+                              {deck.questions[0].decoy}”
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             );

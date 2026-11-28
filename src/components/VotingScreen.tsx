@@ -134,6 +134,27 @@ export const VotingScreen: React.FC<VotingScreenProps> = ({
             )}
           </div>
 
+          {round.mode === 'question' && round.winner && round.mainQuestion && round.decoyQuestion && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-left">
+              <div className="rounded-2xl bg-[#09090E]/85 border border-cyan-400/30 p-3.5 space-y-1">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-cyan-400">
+                  Crew Question
+                </p>
+                <p className="text-xs sm:text-sm font-semibold text-white leading-snug">
+                  “{round.mainQuestion}”
+                </p>
+              </div>
+              <div className="rounded-2xl bg-[#09090E]/85 border border-rose-500/35 p-3.5 space-y-1">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-rose-400">
+                  Impostor Question
+                </p>
+                <p className="text-xs sm:text-sm font-semibold text-white leading-snug">
+                  “{round.decoyQuestion}”
+                </p>
+              </div>
+            </div>
+          )}
+
           {round.winner ? (
             <button
               type="button"

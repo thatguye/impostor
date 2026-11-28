@@ -310,7 +310,7 @@ export const CustomDeckModal: React.FC<CustomDeckModalProps> = ({
                 className="block text-xs text-[#9898B0] leading-relaxed"
               >
                 {activeTab === 'word'
-                  ? 'Paste one item per line using "Word | Hint" (or "Word | Hint 1 | Hint 2"):'
+                  ? 'Paste one item per line using "Word | Hint 1 | Hint 2 | Hint 3":'
                   : 'Paste one pair per line using "Main Question | Decoy Question":'}
               </label>
               <textarea
@@ -320,7 +320,7 @@ export const CustomDeckModal: React.FC<CustomDeckModalProps> = ({
                 onChange={(e) => setBulkText(e.target.value)}
                 placeholder={
                   activeTab === 'word'
-                    ? 'Espresso | Morning fuel | Crema\nSkatepark | Concrete ramps | Helmet'
+                    ? 'Espresso | Pulled under high pressure | Served in a tiny cup | Bitter base for lattes\nSkatepark | Concrete bowls and rails | Wheels clacking on ledges | Helmet recommended'
                     : 'What food would you refuse to eat for $100? | What food could you eat every day?'
                 }
                 className="w-full rounded-xl bg-[#14141F] border border-white/10 p-3 text-xs text-[#F4F4F8] placeholder:text-[#5B5B73] focus:border-cyan-400 focus:outline-none font-mono"

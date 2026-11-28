@@ -390,6 +390,12 @@ export const HomeHub: React.FC<HomeHubProps> = ({
                   <span>Hints On</span>
                 </>
               )}
+              {settings.mode === 'question' && (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <span>{settings.blindLiarMode ? 'Blind Liar' : 'Labeled Impostor'}</span>
+                </>
+              )}
               {settings.survivalMode && (
                 <>
                   <span aria-hidden="true">·</span>
@@ -486,6 +492,7 @@ export const HomeHub: React.FC<HomeHubProps> = ({
             onToggleDeck={onToggleDeck}
             onSelectAll={onSelectAllDecks}
             onDeselectAll={onDeselectAllDecks}
+            onChangeMode={(mode) => onUpdateSettings({ mode })}
             onResetHistory={onResetHistory}
             onCreateCustomDeck={() => {
               setShowDecksSheet(false);
@@ -729,7 +736,8 @@ export const HomeHub: React.FC<HomeHubProps> = ({
               {/* Card Footer Metadata + Subtle Build Version Badge */}
               <div className="flex items-center justify-between gap-2 pt-0.5 text-[11px] font-medium text-[#787894]">
                 <span className="truncate">
-                  2 Modes · {decks.length} Decks · Offline & Live
+                  {decks.filter((d) => d.words.length > 0).length} Word ·{' '}
+                  {decks.filter((d) => d.questions.length > 0).length} Question Decks · Free
                 </span>
                 <span
                   data-testid="version-badge"

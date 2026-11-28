@@ -122,7 +122,7 @@ export default function App() {
   const [settings, setSettings] = useState<GameSettings>(() => loadSettings());
   const [customDecks, setCustomDecks] = useState<CategoryDeck[]>(() => loadCustomDecks());
   const [selectedDeckIds, setSelectedDeckIds] = useState<string[]>(() =>
-    loadSelectedDeckIds(DEFAULT_SELECTED_DECK_IDS)
+    loadSelectedDeckIds(DEFAULT_SELECTED_DECK_IDS, [...loadCustomDecks(), ...BUILT_IN_CATEGORIES])
   );
   const [usedHistory, setUsedHistory] = useState<UsedHistory>(() => loadUsedHistory());
   const [scores, setScores] = useState<Record<string, number>>(() => loadScores());
@@ -489,14 +489,19 @@ export default function App() {
   };
 
   const handleSelectAllDecks = () => {
-    const validIds = allDecks
+    const modeDeckIds = allDecks
       .filter((d) => (settings.mode === 'word' ? d.words.length > 0 : d.questions.length > 0))
       .map((d) => d.id);
-    setSelectedDeckIds(validIds);
+    setSelectedDeckIds((prev) => Array.from(new Set([...prev, ...modeDeckIds])));
   };
 
   const handleDeselectAllDecks = () => {
-    setSelectedDeckIds([]);
+    const modeDeckIds = new Set(
+      allDecks
+        .filter((d) => (settings.mode === 'word' ? d.words.length > 0 : d.questions.length > 0))
+        .map((d) => d.id)
+    );
+    setSelectedDeckIds((prev) => prev.filter((id) => !modeDeckIds.has(id)));
   };
 
   const handleResetHistory = () => {

@@ -37,6 +37,7 @@ export const DEFAULT_SETTINGS: GameSettings = {
   hideImpostorCountInChaos: true,
   impostorHints: true,
   impostorTeamMode: true,
+  blindLiarMode: true,
   preventImpostorFirst: false,
   survivalMode: false,
   discussionTimer: 120,
@@ -90,12 +91,36 @@ export function saveSettings(settings: GameSettings): void {
   writeJSON(KEYS.SETTINGS, settings);
 }
 
-export function loadSelectedDeckIds(defaultIds: string[]): string[] {
+export function loadSelectedDeckIds(
+  defaultIds: string[],
+  validDecks?: CategoryDeck[]
+): string[] {
   const loaded = readJSON<string[] | null>(KEYS.SELECTED_DECKS, null);
   if (!Array.isArray(loaded) || loaded.length === 0) {
     return defaultIds;
   }
-  return loaded;
+  if (!validDecks || validDecks.length === 0) {
+    return loaded;
+  }
+  const validSet = new Set(validDecks.map((d) => d.id));
+  const filtered = loaded.filter((id) => validSet.has(id));
+  if (filtered.length === 0) {
+    return defaultIds;
+  }
+  const hasWordDeck = validDecks.some((d) => filtered.includes(d.id) && d.words.length > 0);
+  const hasQuestionDeck = validDecks.some((d) => filtered.includes(d.id) && d.questions.length > 0);
+  const merged = new Set(filtered);
+  if (!hasWordDeck) {
+    for (const d of validDecks) {
+      if (d.words.length > 0 && defaultIds.includes(d.id)) merged.add(d.id);
+    }
+  }
+  if (!hasQuestionDeck) {
+    for (const d of validDecks) {
+      if (d.questions.length > 0 && defaultIds.includes(d.id)) merged.add(d.id);
+    }
+  }
+  return Array.from(merged);
 }
 
 export function saveSelectedDeckIds(ids: string[]): void {

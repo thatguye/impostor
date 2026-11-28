@@ -14,7 +14,7 @@ import {
   startOnlineVoting,
   submitOnlineQuestionAnswer,
 } from './online';
-import { BUILT_IN_CATEGORIES } from '../data/gameData';
+import { BUILT_IN_CATEGORIES, DEFAULT_SELECTED_DECK_IDS } from '../data/gameData';
 import { DEFAULT_SETTINGS } from '../utils/storage';
 import { GameSettings } from '../types/game';
 
@@ -24,7 +24,7 @@ function buildLobbyWith4Players(settingsPatch: Partial<GameSettings> = {}) {
     code: 'k9xp',
     host: { id: 'p-1', name: 'Alex', emoji: '🦊', color: '#22D3EE' },
     settings,
-    selectedDeckIds: [BUILT_IN_CATEGORIES[0].id],
+    selectedDeckIds: DEFAULT_SELECTED_DECK_IDS,
     customDecks: [],
     now: 1000,
   });

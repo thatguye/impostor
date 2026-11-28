@@ -22,7 +22,7 @@ export interface WordEntry {
   id: string;
   word: string;
   description?: string;
-  hints: [string] | [string, string];
+  hints: [string] | [string, string] | [string, string, string];
 }
 
 export interface QuestionPair {
@@ -51,6 +51,7 @@ export interface GameSettings {
   hideImpostorCountInChaos: boolean;
   impostorHints: boolean;
   impostorTeamMode: boolean;
+  blindLiarMode: boolean;
   preventImpostorFirst: boolean;
   survivalMode: boolean;
   discussionTimer: DiscussionTimerSeconds;
@@ -89,6 +90,7 @@ export interface RoundState {
   /** Question mode fields */
   mainQuestion: string | null;
   decoyQuestion: string | null;
+  blindLiarMode?: boolean;
   submittedAnswers: Record<string, string>;
   /** Roles & progression */
   impostorCount: number;

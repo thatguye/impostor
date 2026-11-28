@@ -227,9 +227,19 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
           <ToggleRow
             id="toggle-impostor-hints"
             label="Impostor Hints"
-            description="Gives each Impostor a subtle contextual clue word."
+            description="Gives each Impostor a distinct subtle clue—different hints when 2+ Impostors play."
             checked={settings.impostorHints}
             onChange={(v) => onUpdateSettings({ impostorHints: v })}
+          />
+        )}
+
+        {settings.mode === 'question' && (
+          <ToggleRow
+            id="toggle-blind-liar"
+            label="Blind Liar Mode"
+            description="Impostors don’t know they got a different question until answers reveal. Turn off to label Impostors."
+            checked={settings.blindLiarMode}
+            onChange={(v) => onUpdateSettings({ blindLiarMode: v })}
           />
         )}
 

@@ -33,8 +33,18 @@ const smallDeck: CategoryDeck = {
   accent: '#22D3EE',
   description: 'Test',
   words: [
-    { id: 'w1', word: 'Volcano', description: 'A mountain vent that erupts molten lava and ash.', hints: ['Magma', 'Island'] },
-    { id: 'w2', word: 'Submarine', description: 'A vessel built to travel and operate deep underwater.', hints: ['Periscope', 'Deep'] },
+    {
+      id: 'w1',
+      word: 'Volcano',
+      description: 'A mountain vent that erupts molten lava and ash.',
+      hints: ['Glows orange down rocky slopes', 'Sends tall ash clouds skyward', 'Dormant for decades before waking'],
+    },
+    {
+      id: 'w2',
+      word: 'Submarine',
+      description: 'A vessel built to travel and operate deep underwater.',
+      hints: ['Dives far beneath ocean waves', 'Peeks up with a tall tube', 'Tracks nearby hulls by sonar'],
+    },
   ],
   questions: [
     { id: 'q1', main: 'Favorite pizza topping?', decoy: 'Worst pizza topping?' },
@@ -81,13 +91,13 @@ test('anti-repeat history avoids repeating prompts until deck is exhausted, then
   assert.equal(r3.promptId, 'w1');
 });
 
-test('word mode assigns secret word to civilians, distinct hints and teammates to multiple impostors', () => {
-  const players = makePlayers(6);
+test('word mode assigns secret word to civilians, 3 distinct hints and teammates to multiple impostors', () => {
+  const players = makePlayers(7);
   const settings: GameSettings = {
     ...DEFAULT_SETTINGS,
     mode: 'word',
     impostorCountMode: 'standard',
-    impostorCount: 2,
+    impostorCount: 3,
     impostorHints: true,
     impostorTeamMode: true,
     preventImpostorFirst: true,
@@ -101,7 +111,7 @@ test('word mode assigns secret word to civilians, distinct hints and teammates t
   const impostors = assignments.filter((a) => a.isImpostor);
   const civilians = assignments.filter((a) => !a.isImpostor);
 
-  assert.equal(impostors.length, 2);
+  assert.equal(impostors.length, 3);
   assert.equal(civilians.length, 4);
 
   // Civilians get secret word + description, no hint
@@ -113,16 +123,16 @@ test('word mode assigns secret word to civilians, distinct hints and teammates t
     assert.deepEqual(c.fellowImpostorNames, []);
   }
 
-  // Impostors get no secret word, no description, distinct hints (deck has 2 hints), and see each other's name
-  assert.equal(impostors[0].secretWord, null);
-  assert.equal(impostors[1].secretWord, null);
-  assert.equal(impostors[0].wordDescription, null);
-  assert.equal(impostors[1].wordDescription, null);
-  assert.ok(impostors[0].hintWord);
-  assert.ok(impostors[1].hintWord);
-  assert.notEqual(impostors[0].hintWord, impostors[1].hintWord);
-  assert.equal(impostors[0].fellowImpostorNames.length, 1);
-  assert.equal(impostors[1].fellowImpostorNames.length, 1);
+  // Impostors get no secret word, no description, 3 distinct hints, and see each other's names
+  const dealtHints = new Set<string>();
+  for (const imp of impostors) {
+    assert.equal(imp.secretWord, null);
+    assert.equal(imp.wordDescription, null);
+    assert.ok(imp.hintWord);
+    dealtHints.add(imp.hintWord);
+    assert.equal(imp.fellowImpostorNames.length, 2);
+  }
+  assert.equal(dealtHints.size, 3, 'Each of the 3 impostors should receive a distinct hint');
 
   // Prevent Impostor Going First guaranteed a civilian starts
   assert.equal(round.assignments[round.startingPlayerId].isImpostor, false);
@@ -170,9 +180,20 @@ test('survival mode continues round when innocent civilian is voted out, standar
   const civilians = Object.values(created.round.assignments).filter((a) => !a.isImpostor);
   const impostor = Object.values(created.round.assignments).find((a) => a.isImpostor)!;
 
-  // Verify question mode gave civilians main and impostor decoy
+  // Verify question mode gave civilians main and impostor decoy, and propagated blindLiarMode
   assert.equal(civilians[0].promptQuestion, created.round.mainQuestion);
   assert.equal(impostor.promptQuestion, created.round.decoyQuestion);
+  assert.equal(created.round.blindLiarMode, true);
+
+  const labeledRound = createRound(
+    players,
+    [smallDeck],
+    { ...settings, blindLiarMode: false },
+    { word: [], question: [] },
+    2,
+    () => 0.3
+  );
+  assert.equal(labeledRound?.round.blindLiarMode, false);
 
   // Standard mode (survivalMode=false) ends immediately on civilian vote-out
   const standardEnd = eliminatePlayer(created.round, civilians[0].playerId, false);
@@ -208,11 +229,13 @@ test('chaos mode zero-impostor call resolves accurately', () => {
   assert.equal(called.winner, 'civilians');
 });
 
-test('bulk import parsers handle valid lines and report invalid lines', () => {
-  const words = parseBulkImportWords('Espresso | Morning fuel | Crema\nInvalidLineOnly\nMatcha | Green tea');
+test('bulk import parsers handle valid 1-to-3 hint lines and report invalid lines', () => {
+  const words = parseBulkImportWords(
+    'Espresso | Morning fuel | Crema | Tiny cup\nInvalidLineOnly\nMatcha | Green tea | Whisked'
+  );
   assert.equal(words.entries.length, 2);
-  assert.deepEqual(words.entries[0].hints, ['Morning fuel', 'Crema']);
-  assert.deepEqual(words.entries[1].hints, ['Green tea']);
+  assert.deepEqual(words.entries[0].hints, ['Morning fuel', 'Crema', 'Tiny cup']);
+  assert.deepEqual(words.entries[1].hints, ['Green tea', 'Whisked']);
   assert.equal(words.errors.length, 1);
 
   const questions = parseBulkImportQuestions(

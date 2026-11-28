@@ -6,9 +6,20 @@ export interface ChangelogEntry {
   items: string[];
 }
 
-export const APP_VERSION = 'v2.0';
+export const APP_VERSION = 'v2.1';
 
 export const CHANGELOG_ENTRIES: ChangelogEntry[] = [
+  {
+    version: 'v2.1',
+    date: 'Nov 28, 2026',
+    time: '12:18 AM',
+    title: 'All Decks Unlocked',
+    items: [
+      'Added 14 Word Decks with 3 smart hints per word.',
+      'Added 9 Question Decks with paired questions.',
+      'Added deck previews and Blind Liar mode.',
+    ],
+  },
   {
     version: 'v2.0',
     date: 'Nov 27, 2026',

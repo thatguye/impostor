@@ -321,13 +321,22 @@ export const PrivacyPassScreen: React.FC<PrivacyPassScreenProps> = ({
                 {/* BACK */}
                 <div
                   aria-hidden={!isQuestionOpen}
-                  className={`backface-hidden rotate-y-180 absolute inset-0 flex flex-col justify-between rounded-[28px] bg-[#0C1C26] border-2 border-cyan-400/75 p-6 shadow-2xl ${
-                    !isQuestionOpen ? 'pointer-events-none' : ''
-                  }`}
+                  className={`backface-hidden rotate-y-180 absolute inset-0 flex flex-col justify-between rounded-[28px] border-2 p-6 shadow-2xl ${
+                    round.blindLiarMode === false && assignment.isImpostor
+                      ? 'bg-[#220D16] border-rose-500/80'
+                      : 'bg-[#0C1C26] border-cyan-400/75'
+                  } ${!isQuestionOpen ? 'pointer-events-none' : ''}`}
                 >
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5 text-xs font-bold tracking-wide text-[#9898B0] min-w-0">
-                      <Eye className="h-4 w-4 text-cyan-400 shrink-0" aria-hidden="true" />
+                      <Eye
+                        className={`h-4 w-4 shrink-0 ${
+                          round.blindLiarMode === false && assignment.isImpostor
+                            ? 'text-rose-400'
+                            : 'text-cyan-400'
+                        }`}
+                        aria-hidden="true"
+                      />
                       <span className="truncate">
                         {round.categoryEmoji} {round.categoryName}
                       </span>
@@ -345,8 +354,16 @@ export const PrivacyPassScreen: React.FC<PrivacyPassScreenProps> = ({
                   </div>
 
                   <div className="my-auto space-y-2.5 text-center py-2">
-                    <p className="text-xs font-bold uppercase tracking-[0.14em] text-cyan-300">
-                      Your Secret Question
+                    <p
+                      className={`text-xs font-bold uppercase tracking-[0.14em] ${
+                        round.blindLiarMode === false && assignment.isImpostor
+                          ? 'text-rose-400'
+                          : 'text-cyan-300'
+                      }`}
+                    >
+                      {round.blindLiarMode === false && assignment.isImpostor
+                        ? 'Impostor Question · Blend In!'
+                        : 'Your Secret Question'}
                     </p>
                     <h2
                       data-testid="secret-question-text"
@@ -354,6 +371,13 @@ export const PrivacyPassScreen: React.FC<PrivacyPassScreenProps> = ({
                     >
                       “{assignment.promptQuestion}”
                     </h2>
+                    {round.blindLiarMode === false &&
+                      assignment.isImpostor &&
+                      assignment.fellowImpostorNames.length > 0 && (
+                        <p className="text-xs text-rose-200/80">
+                          Teammates: {assignment.fellowImpostorNames.join(', ')}
+                        </p>
+                      )}
                   </div>
 
                   <form onSubmit={handleQuestionSubmit} className="space-y-3">
